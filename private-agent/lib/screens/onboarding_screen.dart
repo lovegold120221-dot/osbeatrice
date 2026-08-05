@@ -329,12 +329,18 @@ class _OnboardingScreenState extends State<OnboardingScreen>
     } on FirebaseAuthException catch (error) {
       if (mounted)
         setState(() => _authError = error.message ?? 'Sign-in failed.');
-    } catch (_) {
-      if (mounted)
+    } catch (error) {
+      final detail = error.toString();
+      final isAndroidOAuthConfigurationError =
+          detail.contains('DEVELOPER_ERROR') ||
+          detail.contains('ApiException: 10');
+      if (mounted) {
         setState(
-          () => _authError =
-              'Unable to sign in. Check your connection and try again.',
+          () => _authError = isAndroidOAuthConfigurationError
+              ? 'Google sign-in is not configured for this app build. Register this APK signing certificate in Firebase, then install the updated configuration.'
+              : 'Sign-in failed: $detail',
         );
+      }
     } finally {
       if (mounted) setState(() => _isAuthenticating = false);
     }
