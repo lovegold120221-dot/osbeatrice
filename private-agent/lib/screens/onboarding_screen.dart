@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_overlay_window/flutter_overlay_window.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:ui';
 import '../config/feature_flags.dart';
 import '../services/screen_automation_service.dart';
+import '../services/auth_service.dart';
 import 'home_screen.dart';
 
 class OnboardingScreen extends StatefulWidget {
@@ -19,6 +21,9 @@ class _OnboardingScreenState extends State<OnboardingScreen>
   final PageController _pageController = PageController();
   final ScreenAutomationService _screenAutomationService =
       ScreenAutomationService();
+  final AuthService _authService = AuthService.instance;
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
 
   int _currentStep = 0;
   bool _isAccessibilityGranted = false;
@@ -28,6 +33,9 @@ class _OnboardingScreenState extends State<OnboardingScreen>
   bool _isPhoneGranted = false;
   bool _isSmsGranted = false;
   bool _isOverlayGranted = false;
+  bool _isCreatingAccount = false;
+  bool _isAuthenticating = false;
+  String? _authError;
 
   @override
   void initState() {
@@ -40,6 +48,8 @@ class _OnboardingScreenState extends State<OnboardingScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _pageController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
     super.dispose();
   }
 
@@ -188,7 +198,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                       });
                     },
                     children: [
-                      _buildWelcomePage(isDark),
+                      _buildAuthenticationPage(isDark),
                       _buildPermissionsPage(isDark),
                     ],
                   ),
@@ -257,7 +267,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: List.generate(3, (index) {
+          children: List.generate(2, (index) {
             final isActive = _currentStep == index;
             final isCompleted = _currentStep > index;
 
@@ -266,8 +276,8 @@ class _OnboardingScreenState extends State<OnboardingScreen>
               curve: Curves.easeOutCubic,
               height: 6,
               width: isActive
-                  ? MediaQuery.of(context).size.width * 0.35
-                  : MediaQuery.of(context).size.width * 0.22,
+                  ? MediaQuery.of(context).size.width * 0.48
+                  : MediaQuery.of(context).size.width * 0.45,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(10),
                 color: isActive
@@ -296,11 +306,165 @@ class _OnboardingScreenState extends State<OnboardingScreen>
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            _buildStepperLabel(0, 'Welcome'),
-            _buildStepperLabel(1, 'Permissions'),
+            _buildStepperLabel(0, 'Account'),
+            _buildStepperLabel(1, 'Accessibility'),
           ],
         ),
       ],
+    );
+  }
+
+  Future<void> _completeAuthentication(Future<void> Function() action) async {
+    setState(() {
+      _isAuthenticating = true;
+      _authError = null;
+    });
+    try {
+      await action();
+      if (!mounted) return;
+      await _pageController.nextPage(
+        duration: const Duration(milliseconds: 400),
+        curve: Curves.easeOutCubic,
+      );
+    } on FirebaseAuthException catch (error) {
+      if (mounted)
+        setState(() => _authError = error.message ?? 'Sign-in failed.');
+    } catch (_) {
+      if (mounted)
+        setState(
+          () => _authError =
+              'Unable to sign in. Check your connection and try again.',
+        );
+    } finally {
+      if (mounted) setState(() => _isAuthenticating = false);
+    }
+  }
+
+  Widget _buildAuthenticationPage(bool isDark) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 28),
+      child: Center(
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Icon(
+                Icons.auto_awesome_rounded,
+                size: 56,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+              const SizedBox(height: 20),
+              Text(
+                'Sign in to Beatrice OS',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.w800,
+                  color: isDark ? Colors.white : Colors.black,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Your account securely pairs this phone with Beatrice Voice.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: isDark
+                      ? const Color(0xFF94A3B8)
+                      : const Color(0xFF475569),
+                ),
+              ),
+              const SizedBox(height: 28),
+              if (_authError != null) ...[
+                Text(
+                  _authError!,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.redAccent, fontSize: 13),
+                ),
+                const SizedBox(height: 12),
+              ],
+              OutlinedButton.icon(
+                onPressed: _isAuthenticating
+                    ? null
+                    : () => _completeAuthentication(
+                        () => _authService.signInWithGoogle(),
+                      ),
+                icon: const Icon(Icons.g_mobiledata_rounded, size: 26),
+                label: const Text('Continue with Google'),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(52),
+                ),
+              ),
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 18),
+                child: Row(
+                  children: [
+                    Expanded(child: Divider()),
+                    Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 12),
+                      child: Text('or'),
+                    ),
+                    Expanded(child: Divider()),
+                  ],
+                ),
+              ),
+              TextField(
+                controller: _emailController,
+                keyboardType: TextInputType.emailAddress,
+                decoration: const InputDecoration(labelText: 'Email address'),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _passwordController,
+                obscureText: true,
+                decoration: const InputDecoration(labelText: 'Password'),
+              ),
+              const SizedBox(height: 18),
+              FilledButton(
+                onPressed: _isAuthenticating
+                    ? null
+                    : () => _completeAuthentication(() async {
+                        if (_emailController.text.trim().isEmpty ||
+                            _passwordController.text.length < 6) {
+                          throw StateError(
+                            'Enter a valid email and a password with at least 6 characters.',
+                          );
+                        }
+                        if (_isCreatingAccount) {
+                          await _authService.createAccount(
+                            _emailController.text,
+                            _passwordController.text,
+                          );
+                        } else {
+                          await _authService.signInWithEmail(
+                            _emailController.text,
+                            _passwordController.text,
+                          );
+                        }
+                      }),
+                child: Text(
+                  _isAuthenticating
+                      ? 'Please wait…'
+                      : _isCreatingAccount
+                      ? 'Create account'
+                      : 'Sign in',
+                ),
+              ),
+              TextButton(
+                onPressed: _isAuthenticating
+                    ? null
+                    : () => setState(
+                        () => _isCreatingAccount = !_isCreatingAccount,
+                      ),
+                child: Text(
+                  _isCreatingAccount
+                      ? 'Already have an account? Sign in'
+                      : 'New here? Create an account',
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 

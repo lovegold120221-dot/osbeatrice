@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_overlay_window/flutter_overlay_window.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:developer';
 import 'config/feature_flags.dart';
 import 'screens/home_screen.dart';
@@ -76,8 +77,9 @@ void main() async {
   }
 
   final onboardingCompleted = prefs.getBool('onboarding_completed') ?? false;
+  final signedIn = FirebaseAuth.instance.currentUser != null;
 
-  runApp(BeatriceOSApp(onboardingCompleted: onboardingCompleted));
+  runApp(BeatriceOSApp(onboardingCompleted: onboardingCompleted && signedIn));
 }
 
 class BeatriceOSApp extends StatelessWidget {
