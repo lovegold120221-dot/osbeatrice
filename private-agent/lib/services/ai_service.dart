@@ -258,7 +258,7 @@ Answer questions, explain concepts, brainstorm, write emails/messages, and chat 
     return {
       'Content-Type': 'application/json',
       'Authorization': 'Bearer $_apiKey',
-      'HTTP-Referer': 'https://github.com/orailnoor/private-agent',
+      'HTTP-Referer': 'https://github.com/lovegold120221-dot/osbeatrice',
       'X-Title': 'Beatrice OS',
     };
   }
