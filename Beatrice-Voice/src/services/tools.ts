@@ -72,10 +72,15 @@ export const tools = [calculatorTool, calendarTool, taskerTool];
  * pretend it can operate a phone when no private-agent host is connected.
  */
 let embeddedDeviceId: string | null = null;
+let embeddedOwnerUid: string | null = null;
 let taskExecutorPermission: TaskExecutorPermission = "allow-full";
 
 export function setEmbeddedDeviceId(deviceId: string | null) {
   embeddedDeviceId = deviceId;
+}
+
+export function setEmbeddedOwnerUid(ownerUid: string | null) {
+  embeddedOwnerUid = ownerUid;
 }
 
 export function setTaskExecutorPermission(permission: TaskExecutorPermission) {
@@ -113,7 +118,7 @@ async function dispatchDeviceTask(args: {
   priority?: string;
   confirmed?: boolean;
 }) {
-  if (typeof window === "undefined" || !embeddedDeviceId || !auth.currentUser) {
+  if (typeof window === "undefined" || !embeddedDeviceId || !embeddedOwnerUid || !auth.currentUser) {
     return {
       status: "unavailable",
       message: "Connect Beatrice Voice to a signed-in paired mobile app before sending a device task.",
@@ -128,7 +133,7 @@ async function dispatchDeviceTask(args: {
   }
 
   const pairing = await get(ref(database, `devicePairs/${embeddedDeviceId}`));
-  if (!pairing.exists() || pairing.val()?.ownerUid !== auth.currentUser.uid) {
+  if (!pairing.exists() || pairing.val()?.ownerUid !== embeddedOwnerUid) {
     return {
       status: "unavailable",
       message: "This mobile agent is not paired with the signed-in Beatrice account yet.",
@@ -138,7 +143,7 @@ async function dispatchDeviceTask(args: {
   const taskRef = push(ref(database, `deviceTasks/${embeddedDeviceId}`));
   await set(taskRef, {
     id: taskRef.key,
-    ownerUid: auth.currentUser.uid,
+    ownerUid: embeddedOwnerUid,
     goal: args.task || "",
     priority: args.priority || "normal",
     permissionMode: taskExecutorPermission,

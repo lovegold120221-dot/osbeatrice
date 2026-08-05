@@ -32,7 +32,11 @@ class FirebaseTaskBridge {
       deviceId = 'android-${DateTime.now().microsecondsSinceEpoch}';
       await prefs.setString('firebase_task_device_id', deviceId!);
     }
-    _pairedOwnerUid = prefs.getString('firebase_task_owner_uid');
+    _pairedOwnerUid =
+        auth.currentUser?.uid ?? prefs.getString('firebase_task_owner_uid');
+    if (_pairedOwnerUid != null) {
+      await prefs.setString('firebase_task_owner_uid', _pairedOwnerUid!);
+    }
     _tasks = FirebaseDatabase.instance.ref('deviceTasks/$deviceId');
     _subscription = _tasks.onChildAdded.listen(
       _onTaskAdded,

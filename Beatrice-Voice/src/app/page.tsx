@@ -4,7 +4,7 @@ import Image from 'next/image';
 import { motion, AnimatePresence } from 'motion/react';
 import Markdown from 'react-markdown';
 import { auth, database, storage } from '../lib/firebase';
-import { onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, GoogleAuthProvider, getRedirectResult, signInWithPopup, signInWithRedirect, User as FirebaseUser } from 'firebase/auth';
+import { onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, GoogleAuthProvider, getRedirectResult, signInAnonymously, signInWithPopup, signInWithRedirect, User as FirebaseUser } from 'firebase/auth';
 import { ref as dbRef, set, push, get, query, orderByChild, remove, onValue, update } from 'firebase/database';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { 
@@ -46,7 +46,7 @@ import {
 } from '../services/gemini';
 import { generateChatResponseStream } from '../services/ollama';
 import { generateImage } from '../services/flux';
-import { tools, executeTool, pairEmbeddedDevice, setEmbeddedDeviceId, setTaskExecutorPermission, type TaskExecutorPermission } from "../services/tools";
+import { tools, executeTool, setEmbeddedDeviceId, setEmbeddedOwnerUid, setTaskExecutorPermission, type TaskExecutorPermission } from "../services/tools";
 
 declare global {
   interface Window {
@@ -180,6 +180,7 @@ export default function App() {
   const [ollamaModel, setOllamaModel] = useState('');
   const [taskExecutorPermission, setTaskExecutorPermissionState] = useState<TaskExecutorPermission>('allow-full');
   const [pairedDeviceId, setPairedDeviceId] = useState<string | null>(null);
+  const [mobileOwnerUid, setMobileOwnerUid] = useState<string | null>(null);
   const currentChatIdRef = useRef<string | null>(null);
   const chatCreationRef = useRef<Promise<string> | null>(null);
   const savedMessageIdsRef = useRef(new WeakMap<object, string>());
@@ -188,6 +189,7 @@ export default function App() {
     currentChatIdRef.current = chatId;
     setCurrentChatId(chatId);
   };
+  const firebaseOwnerUid = mobileOwnerUid ?? user?.uid ?? null;
 
   useEffect(() => {
     const savedUserContext = localStorage.getItem('eburon_userContext');
@@ -246,29 +248,45 @@ export default function App() {
 
   useEffect(() => {
     const onDeviceReady = (event: Event) => {
-      const deviceId = (event as CustomEvent<{ deviceId?: string }>).detail?.deviceId;
+      const detail = (event as CustomEvent<{ deviceId?: string; ownerUid?: string }>).detail;
+      const deviceId = detail?.deviceId;
       if (!deviceId) return;
       localStorage.setItem('eburon_pairedDeviceId', deviceId);
       setEmbeddedDeviceId(deviceId);
       setPairedDeviceId(deviceId);
+      if (detail.ownerUid) {
+        setMobileOwnerUid(detail.ownerUid);
+        setEmbeddedOwnerUid(detail.ownerUid);
+      }
     };
     window.addEventListener('beatrice-device-ready', onDeviceReady);
     return () => window.removeEventListener('beatrice-device-ready', onDeviceReady);
   }, []);
 
   useEffect(() => {
-    if (!user || !pairedDeviceId) return;
-    void pairEmbeddedDevice(pairedDeviceId)
-      .then((paired) => {
-        if (!paired) return;
-        window.BeatriceBridge?.postMessage(JSON.stringify({
-          type: 'device.pair',
-          deviceId: pairedDeviceId,
-          ownerUid: user.uid,
-        }));
-      })
-      .catch((error) => console.error('Failed to pair mobile agent', error));
+    if (!pairedDeviceId || !user?.isAnonymous) return;
+    window.BeatriceBridge?.postMessage(JSON.stringify({
+      type: 'device.webSession',
+      deviceId: pairedDeviceId,
+      webSessionUid: user.uid,
+    }));
   }, [user, pairedDeviceId]);
+
+  useEffect(() => {
+    const onIdentity = (event: Event) => {
+      const detail = (event as CustomEvent<{ ownerUid?: string }>).detail;
+      if (!detail?.ownerUid) return;
+      setMobileOwnerUid(detail.ownerUid);
+      setEmbeddedOwnerUid(detail.ownerUid);
+    };
+    window.addEventListener('beatrice-task-event', onIdentity);
+    return () => window.removeEventListener('beatrice-task-event', onIdentity);
+  }, []);
+
+  useEffect(() => {
+    if (!window.BeatriceBridge || auth.currentUser) return;
+    void signInAnonymously(auth).catch((error) => setAuthError(error.message || 'Unable to start the embedded session.'));
+  }, []);
 
   useEffect(() => {
     let stopTaskListener: (() => void) | undefined;
@@ -455,10 +473,10 @@ export default function App() {
 
   const deleteChat = async (e: React.MouseEvent, chatId: string) => {
     e.stopPropagation();
-    if (!user) return;
+    if (!firebaseOwnerUid) return;
 
     try {
-      await remove(dbRef(database, `users/${user.uid}/conversations/${chatId}`));
+      await remove(dbRef(database, `users/${firebaseOwnerUid}/conversations/${chatId}`));
       if (currentChatId === chatId) {
         clearChat();
       }
@@ -488,11 +506,11 @@ export default function App() {
 
   // Fetch recent conversation history from Firebase for long-term memory
   const fetchConversationMemory = async (): Promise<string> => {
-    if (!user) return '';
+    if (!firebaseOwnerUid) return '';
     try {
       const snapshot = await get(
         query(
-          dbRef(database, `users/${user.uid}/conversations`),
+          dbRef(database, `users/${firebaseOwnerUid}/conversations`),
           orderByChild('created_at')
         )
       );
@@ -509,7 +527,7 @@ export default function App() {
         if (count >= 3) break;
         const msgSnapshot = await get(
           query(
-            dbRef(database, `users/${user.uid}/conversations/${chat.key}/messages`),
+            dbRef(database, `users/${firebaseOwnerUid}/conversations/${chat.key}/messages`),
             orderByChild('created_at')
           )
         );
@@ -963,14 +981,14 @@ export default function App() {
   // Firebase is the source of truth for the sidebar. This subscription makes
   // session creation, title changes, and deletions appear without a refresh.
   useEffect(() => {
-    if (!user) {
+    if (!firebaseOwnerUid) {
       setChatHistory([]);
       setActiveChatId(null);
       return;
     }
 
     return onValue(
-      dbRef(database, `users/${user.uid}/conversations`),
+      dbRef(database, `users/${firebaseOwnerUid}/conversations`),
       (snapshot) => {
         const sessions: any[] = [];
         snapshot.forEach((child) => {
@@ -983,7 +1001,7 @@ export default function App() {
       },
       (error) => console.error('Failed to sync chat history', error),
     );
-  }, [user]);
+  }, [firebaseOwnerUid]);
 
   const loadChat = async (chatId: string) => {
     setIsLoading(true);
@@ -993,7 +1011,7 @@ export default function App() {
     try {
       const snapshot = await get(
         query(
-          dbRef(database, `users/${user?.uid}/conversations/${chatId}/messages`),
+          dbRef(database, `users/${firebaseOwnerUid}/conversations/${chatId}/messages`),
           orderByChild('created_at')
         )
       );
@@ -1030,7 +1048,7 @@ export default function App() {
   };
 
   const saveMessageToDb = async (msg: Message) => {
-    if (!user) return;
+    if (!firebaseOwnerUid) return;
     try {
       let chatId = currentChatIdRef.current;
 
@@ -1039,7 +1057,7 @@ export default function App() {
         // Serialize creation so both are saved to the same Firebase session.
         if (!chatCreationRef.current) {
           chatCreationRef.current = (async () => {
-            const chatsRef = push(dbRef(database, `users/${user.uid}/conversations`));
+            const chatsRef = push(dbRef(database, `users/${firebaseOwnerUid}/conversations`));
             const createdAt = Date.now();
             const normalizedTitle = msg.text.replace(/\s+/g, ' ').trim() || 'New conversation';
             const title = normalizedTitle.slice(0, 48) + (normalizedTitle.length > 48 ? '...' : '');
@@ -1072,7 +1090,7 @@ export default function App() {
         }
         const byteArray = new Uint8Array(byteNumbers);
         const blob = new Blob([byteArray], { type: 'image/png' });
-        const fileName = `chat-images/${user.uid}/${Date.now()}.png`;
+        const fileName = `chat-images/${firebaseOwnerUid}/${Date.now()}.png`;
 
         const uploadResult = await uploadBytes(storageRef(storage, fileName), blob);
         imageUrl = await getDownloadURL(uploadResult.ref);
@@ -1081,11 +1099,11 @@ export default function App() {
       // Reusing the same id makes retries/turn-complete events idempotent.
       let messageId = msg.id || savedMessageIdsRef.current.get(msg);
       if (!messageId) {
-        messageId = push(dbRef(database, `users/${user.uid}/conversations/${chatId}/messages`)).key!;
+        messageId = push(dbRef(database, `users/${firebaseOwnerUid}/conversations/${chatId}/messages`)).key!;
         savedMessageIdsRef.current.set(msg, messageId);
       }
       const createdAt = msg.createdAt || Date.now();
-      await set(dbRef(database, `users/${user.uid}/conversations/${chatId}/messages/${messageId}`), {
+      await set(dbRef(database, `users/${firebaseOwnerUid}/conversations/${chatId}/messages/${messageId}`), {
         role: msg.role,
         text: msg.text,
         image_url: imageUrl || null,
@@ -1093,7 +1111,7 @@ export default function App() {
         original_prompt: msg.originalPrompt || null,
         created_at: createdAt,
       });
-      await update(dbRef(database, `users/${user.uid}/conversations/${chatId}`), {
+      await update(dbRef(database, `users/${firebaseOwnerUid}/conversations/${chatId}`), {
         updated_at: Date.now(),
       });
     } catch (e) {

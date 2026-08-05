@@ -1,6 +1,8 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
 
@@ -69,7 +71,14 @@ class _BeatriceVoiceScreenState extends State<BeatriceVoiceScreen> {
               });
             }
             if (widget.deviceId != null) {
-              _emitEvent({'type': 'device.ready', 'deviceId': widget.deviceId});
+              final user = FirebaseAuth.instance.currentUser;
+              _emitEvent({
+                'type': 'device.ready',
+                'deviceId': widget.deviceId,
+                'ownerUid': user?.uid,
+                'email': user?.email,
+                'displayName': user?.displayName,
+              });
             }
           },
           onWebResourceError: (error) {
@@ -136,6 +145,34 @@ class _BeatriceVoiceScreenState extends State<BeatriceVoiceScreen> {
       return;
     }
 
+    if (request['type'] == 'device.webSession') {
+      final deviceId = request['deviceId'] as String?;
+      final webSessionUid = request['webSessionUid'] as String?;
+      final user = FirebaseAuth.instance.currentUser;
+      if (deviceId == widget.deviceId &&
+          webSessionUid != null &&
+          webSessionUid.isNotEmpty &&
+          user != null) {
+        await FirebaseDatabase.instance.ref('agentProfiles/$deviceId').update({
+          'deviceId': deviceId,
+          'ownerUid': user.uid,
+          'email': user.email,
+          'displayName': user.displayName,
+          'webSessionUid': webSessionUid,
+          'updatedAt': ServerValue.timestamp,
+        });
+        await widget.onPairOwner(user.uid);
+        await _emitEvent({
+          'type': 'device.identity',
+          'deviceId': deviceId,
+          'ownerUid': user.uid,
+          'email': user.email,
+          'displayName': user.displayName,
+        });
+      }
+      return;
+    }
+
     if (request['type'] != 'task.create') return;
     final id = request['id'] as String?;
     final goal = request['goal'] as String?;
@@ -178,8 +215,11 @@ class _BeatriceVoiceScreenState extends State<BeatriceVoiceScreen> {
 
   Future<void> _emitEvent(Map<String, dynamic> event) {
     final payload = jsonEncode(event);
+    final eventName = event['type'] == 'device.ready'
+        ? 'beatrice-device-ready'
+        : 'beatrice-task-event';
     return _controller.runJavaScript(
-      'window.dispatchEvent(new CustomEvent("beatrice-task-event", {detail: $payload}));',
+      'window.dispatchEvent(new CustomEvent("$eventName", {detail: $payload}));',
     );
   }
 
