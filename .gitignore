@@ -1,0 +1,28 @@
+# Repository metadata from the former standalone Flutter repository.
+private-agent/.git.private-agent-backup/
+
+# JavaScript and Flutter build output.
+**/node_modules/
+**/.next/
+**/*.tsbuildinfo
+**/build/
+**/.dart_tool/
+**/.packages
+**/.flutter-plugins*
+
+# Local environment, credentials, and Firebase platform configuration.
+**/.env
+**/.env.*
+!**/.env.example
+private-agent/android/app/google-services.json
+private-agent/google-services*.json
+private-agent/GoogleService-Info*.plist
+
+# Downloaded or generated model assets.
+*.onnx
+*.pt
+
+# IDE and operating-system files.
+.DS_Store
+.idea/
+.vscode/
