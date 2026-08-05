@@ -314,6 +314,8 @@ export default function App() {
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioQueueRef = useRef<Int16Array[]>([]);
   const isPlayingRef = useRef(false);
+  const nextAudioStartRef = useRef(0);
+  const scheduledAudioSourcesRef = useRef<AudioBufferSourceNode[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
   const processorRef = useRef<ScriptProcessorNode | null>(null);
   const audioWorkletRef = useRef<AudioWorkletNode | null>(null);
@@ -516,7 +518,7 @@ export default function App() {
             }
             const pcmData = new Int16Array(bytes.buffer);
             audioQueueRef.current.push(pcmData);
-            if (!isPlayingRef.current) playNextInQueue();
+            scheduleAudioPlayback();
           }
 
           if (message.serverContent?.modelTurn?.parts?.[0]?.text) {
@@ -546,9 +548,7 @@ export default function App() {
           }
 
           if (message.serverContent?.interrupted) {
-            audioQueueRef.current = [];
-            isPlayingRef.current = false;
-            setIsSpeaking(false);
+            clearAudioPlayback();
           }
         },
         (err) => console.error("Chat live error:", err),
@@ -630,11 +630,14 @@ export default function App() {
             // Skip sending silence frames after hangover
             if (!isSpeech && vadSilenceFrames > VAD_HANGOVER) return;
 
-            // Downsample 24kHz → 16kHz (ratio 3:2) for Gemini live API
-            const outLen = Math.floor(inputData.length * 2 / 3);
+            // Downsample from the browser's actual AudioContext rate (usually
+            // 44.1 or 48 kHz) to Gemini Live's 16 kHz input format.
+            const inputRate = audioContextRef.current!.sampleRate;
+            const ratio = inputRate / 16000;
+            const outLen = Math.floor(inputData.length / ratio);
             const pcmData = new Int16Array(outLen);
             for (let j = 0; j < outLen; j++) {
-              const idx = j * 1.5;
+              const idx = j * ratio;
               const i = Math.floor(idx);
               const frac = idx - i;
               const sample = i + 1 < inputData.length
@@ -651,7 +654,13 @@ export default function App() {
           };
 
           source.connect(processor);
-          processor.connect(audioContextRef.current!.destination);
+          // ScriptProcessor must remain connected to process input, but never
+          // route the microphone to speakers: that causes echo/feedback and
+          // can be perceived as crackling alongside the model voice.
+          const silentGain = audioContextRef.current!.createGain();
+          silentGain.gain.value = 0;
+          processor.connect(silentGain);
+          silentGain.connect(audioContextRef.current!.destination);
 
           streamRef.current = stream;
           processorRef.current = processor;
@@ -667,7 +676,7 @@ export default function App() {
             }
             const pcmData = new Int16Array(bytes.buffer);
             audioQueueRef.current.push(pcmData);
-            if (!isPlayingRef.current) playNextInQueue();
+            scheduleAudioPlayback();
           }
 
           if (message.serverContent?.modelTurn?.parts?.[0]?.text) {
@@ -710,9 +719,7 @@ export default function App() {
           }
 
           if (message.serverContent?.interrupted) {
-            audioQueueRef.current = [];
-            isPlayingRef.current = false;
-            setIsSpeaking(false);
+            clearAudioPlayback();
           }
         },
         (err) => console.error("Live error:", err),
@@ -732,39 +739,74 @@ export default function App() {
     }
   };
 
-  const playNextInQueue = () => {
-    if (audioQueueRef.current.length === 0 || !audioContextRef.current) {
-      isPlayingRef.current = false;
-      setIsSpeaking(false);
-      return;
+  const clearAudioPlayback = () => {
+    audioQueueRef.current = [];
+    for (const source of scheduledAudioSourcesRef.current) {
+      try { source.stop(); } catch (_) {}
     }
+    scheduledAudioSourcesRef.current = [];
+    nextAudioStartRef.current = 0;
+    outputAnalyserRef.current = null;
+    isPlayingRef.current = false;
+    setIsSpeaking(false);
+  };
+
+  // Gemini Live sends short 24 kHz PCM chunks. Scheduling every available
+  // chunk against one shared timeline prevents the start/stop gaps that make
+  // voice output sound cracked or robotic.
+  const scheduleAudioPlayback = () => {
+    const context = audioContextRef.current;
+    if (!context || audioQueueRef.current.length === 0) return;
+
+    const queuedSeconds = audioQueueRef.current.reduce(
+      (total, chunk) => total + chunk.length / 24000,
+      0,
+    );
+    // Buffer a short lead before the first sample, then stay ahead of playback.
+    if (!isPlayingRef.current && queuedSeconds < 0.12) return;
 
     isPlayingRef.current = true;
     setIsSpeaking(true);
-    const pcmData = audioQueueRef.current.shift()!;
-    const float32Data = new Float32Array(pcmData.length);
-    for (let i = 0; i < pcmData.length; i++) {
-      float32Data[i] = pcmData[i] / 0x7FFF;
+    let startAt = Math.max(nextAudioStartRef.current, context.currentTime + 0.04);
+
+    while (audioQueueRef.current.length > 0) {
+      const pcmData = audioQueueRef.current.shift()!;
+      const float32Data = new Float32Array(pcmData.length);
+      for (let i = 0; i < pcmData.length; i++) {
+        float32Data[i] = pcmData[i] / 0x7FFF;
+      }
+
+      const targetSampleRate = context.sampleRate;
+      const resampledData = resampleAudio(float32Data, 24000, targetSampleRate);
+      const buffer = context.createBuffer(1, resampledData.length, targetSampleRate);
+      buffer.getChannelData(0).set(resampledData);
+
+      const source = context.createBufferSource();
+      const outputAnalyser = context.createAnalyser();
+      outputAnalyser.fftSize = 64;
+      source.buffer = buffer;
+      source.connect(outputAnalyser);
+      outputAnalyser.connect(context.destination);
+      outputAnalyserRef.current = outputAnalyser;
+      scheduledAudioSourcesRef.current.push(source);
+
+      source.onended = () => {
+        scheduledAudioSourcesRef.current = scheduledAudioSourcesRef.current.filter(
+          (scheduled) => scheduled !== source,
+        );
+        if (scheduledAudioSourcesRef.current.length === 0 && audioQueueRef.current.length === 0) {
+          outputAnalyserRef.current = null;
+          isPlayingRef.current = false;
+          nextAudioStartRef.current = 0;
+          setIsSpeaking(false);
+        } else {
+          scheduleAudioPlayback();
+        }
+      };
+      source.start(startAt);
+      startAt += buffer.duration;
     }
-
-    // Resample from 24kHz (Gemini's output rate) to the AudioContext's actual sample rate
-    const targetSampleRate = audioContextRef.current.sampleRate;
-    const resampledData = resampleAudio(float32Data, 24000, targetSampleRate);
-
-    const buffer = audioContextRef.current.createBuffer(1, resampledData.length, targetSampleRate);
-    buffer.getChannelData(0).set(resampledData);
-    const source = audioContextRef.current.createBufferSource();
-    source.buffer = buffer;
-    const outputAnalyser = audioContextRef.current.createAnalyser();
-    outputAnalyser.fftSize = 64;
-    source.connect(outputAnalyser);
-    outputAnalyser.connect(audioContextRef.current.destination);
-    outputAnalyserRef.current = outputAnalyser;
-    source.onended = () => {
-      outputAnalyserRef.current = null;
-      playNextInQueue();
-    };
-    source.start();
+    nextAudioStartRef.current = startAt;
   };
 
   // Natural interruption handling - when user speaks while agent is speaking
@@ -772,9 +814,7 @@ export default function App() {
     console.log('Handling user interruption...');
     
     // 1. Clear audio queue and stop current playback
-    audioQueueRef.current = [];
-    isPlayingRef.current = false;
-    setIsSpeaking(false);
+    clearAudioPlayback();
     
     // 2. Send acknowledgment through live session if available
     if (liveSessionRef.current) {
@@ -825,8 +865,7 @@ export default function App() {
     setIsVoiceOpen(false);
     setIsSpeaking(false);
     setLiveTranscription('');
-    audioQueueRef.current = [];
-    isPlayingRef.current = false;
+    clearAudioPlayback();
   };
 
   const toggleVoiceMode = async (active: boolean) => {
