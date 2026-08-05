@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:developer' as developer;
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../models/chat_message.dart';
 import '../services/ai_service.dart';
 import '../services/action_handler.dart';
@@ -18,6 +19,7 @@ import 'beatrice_voice_screen.dart';
 import 'package:flutter_overlay_window/flutter_overlay_window.dart';
 import '../main.dart';
 import '../config/feature_flags.dart';
+import '../theme/beatrice_theme.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -75,7 +77,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     try {
       await _firebaseTaskBridge.init();
     } catch (error) {
-      developer.log('Firebase task bridge unavailable: $error', name: 'BeatriceOS');
+      developer.log(
+        'Firebase task bridge unavailable: $error',
+        name: 'BeatriceOS',
+      );
     }
     await _actionHandler.shizuku.checkAvailability();
 
@@ -506,22 +511,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: isDark
-          ? const Color(0xFF0C0A15)
-          : const Color(0xFFFFFFFF),
+      backgroundColor: BeatriceTheme.black,
       appBar: AppBar(
         title: RichText(
           text: TextSpan(
-            style: TextStyle(
-              fontSize: 20,
-              color: isDark ? Colors.white : const Color(0xFF1E293B),
-            ),
+            style: TextStyle(fontSize: 20, color: BeatriceTheme.text),
             children: [
               TextSpan(
                 text: 'Beatrice',
                 style: TextStyle(
                   fontWeight: FontWeight.w900,
-                  color: Theme.of(context).colorScheme.primary,
+                  color: BeatriceTheme.text,
                   letterSpacing: -0.5,
                 ),
               ),
@@ -539,20 +539,20 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         scrolledUnderElevation: 0,
         leading: Builder(
           builder: (context) => IconButton(
-            icon: const Icon(Icons.drag_indicator_rounded),
+            icon: const Icon(LucideIcons.menu),
             tooltip: 'Menu',
             onPressed: () => Scaffold.of(context).openDrawer(),
           ),
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.edit_note_rounded),
+            icon: const Icon(LucideIcons.squarePen),
             tooltip: 'New chat',
             onPressed: _isLoading ? null : _startNewChat,
           ),
           // Settings Action
           IconButton(
-            icon: const Icon(Icons.tune_rounded),
+            icon: const Icon(LucideIcons.slidersHorizontal),
             onPressed: () async {
               await Navigator.push(
                 context,
@@ -680,7 +680,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
                           valueColor: AlwaysStoppedAnimation<Color>(
-                            Colors.indigoAccent,
+                            BeatriceTheme.text,
                           ),
                         ),
                       ),
@@ -689,9 +689,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         'Thinking...',
                         style: TextStyle(
                           fontSize: 12,
-                          color: isDark
-                              ? const Color(0xFF9E9BAC)
-                              : const Color(0xFF6C6A7C),
+                          color: BeatriceTheme.mutedText,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -704,14 +702,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           });
                         },
                         icon: const Icon(
-                          Icons.stop_circle_rounded,
+                          LucideIcons.square,
                           size: 16,
-                          color: Colors.redAccent,
+                          color: BeatriceTheme.danger,
                         ),
                         label: const Text(
                           'Stop',
                           style: TextStyle(
-                            color: Colors.redAccent,
+                            color: BeatriceTheme.danger,
                             fontSize: 12,
                             fontWeight: FontWeight.bold,
                           ),
@@ -737,14 +735,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Widget _buildDrawer(BuildContext context, bool isDark) {
-    final drawerBg = isDark ? const Color(0xFF0B0F19) : const Color(0xFFF8FAFC);
+    const drawerBg = BeatriceTheme.black;
     final textStyle = TextStyle(
-      color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569),
+      color: BeatriceTheme.mutedText,
       fontWeight: FontWeight.w600,
       fontSize: 13.5,
     );
     final headerStyle = TextStyle(
-      color: isDark ? Colors.white : const Color(0xFF1E293B),
+      color: BeatriceTheme.text,
       fontSize: 17,
       fontWeight: FontWeight.w900,
       letterSpacing: -0.5,
@@ -766,9 +764,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             child: Row(
               children: [
                 Icon(
-                  Icons.auto_awesome_rounded,
-                  color: Theme.of(context).primaryColor,
-                  size: 26,
+                  LucideIcons.audioWaveform,
+                  color: BeatriceTheme.text,
+                  size: 24,
                 ),
                 const SizedBox(width: 12),
                 Text('Beatrice OS', style: headerStyle),
@@ -782,13 +780,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             child: Container(
               width: double.infinity,
               decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primary,
+                color: BeatriceTheme.text,
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.primary.withOpacity(0.2),
+                    color: Colors.black.withValues(alpha: 0.2),
                     blurRadius: 8,
                     offset: const Offset(0, 3),
                   ),
@@ -808,15 +804,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Icon(
-                          Icons.add_circle_outline_rounded,
-                          color: Colors.white,
+                          LucideIcons.plus,
+                          color: BeatriceTheme.black,
                           size: 16,
                         ),
                         const SizedBox(width: 8),
                         Text(
                           'New Chat',
                           style: TextStyle(
-                            color: Colors.white,
+                            color: BeatriceTheme.black,
                             fontWeight: FontWeight.bold,
                             fontSize: 13.5,
                           ),
@@ -841,7 +837,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 style: TextStyle(
                   fontSize: 10,
                   fontWeight: FontWeight.w800,
-                  color: Theme.of(context).primaryColor,
+                  color: BeatriceTheme.mutedText,
                   letterSpacing: 1.5,
                 ),
               ),
@@ -858,7 +854,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     child: Text(
                       'No recent chats',
                       style: TextStyle(
-                        color: isDark ? Colors.grey[800] : Colors.grey[400],
+                        color: BeatriceTheme.mutedText,
                         fontSize: 12,
                       ),
                     ),
@@ -880,17 +876,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       ),
                       decoration: BoxDecoration(
                         color: isCurrent
-                            ? Theme.of(
-                                context,
-                              ).colorScheme.primary.withOpacity(0.08)
+                            ? BeatriceTheme.raisedPanel
                             : Colors.transparent,
                         borderRadius: BorderRadius.circular(12),
                         border: isCurrent
-                            ? Border.all(
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.primary.withOpacity(0.15),
-                              )
+                            ? Border.all(color: BeatriceTheme.border)
                             : null,
                       ),
                       child: ListTile(
@@ -900,11 +890,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         ),
                         dense: true,
                         leading: Icon(
-                          Icons.forum_outlined,
+                          LucideIcons.messageSquare,
                           size: 15,
                           color: isCurrent
-                              ? Theme.of(context).colorScheme.primary
-                              : (isDark ? Colors.grey[600] : Colors.grey[500]),
+                              ? BeatriceTheme.text
+                              : BeatriceTheme.mutedText,
                         ),
                         title: Text(
                           session.title,
@@ -914,18 +904,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                             fontWeight: isCurrent
                                 ? FontWeight.bold
                                 : FontWeight.w500,
-                            color: isCurrent
-                                ? (isDark
-                                      ? Colors.white
-                                      : const Color(0xFF1E293B))
-                                : null,
+                            color: isCurrent ? BeatriceTheme.text : null,
                           ),
                         ),
                         trailing: IconButton(
                           icon: Icon(
-                            Icons.close_rounded,
+                            LucideIcons.x,
                             size: 16,
-                            color: Colors.redAccent.withOpacity(0.7),
+                            color: BeatriceTheme.danger.withValues(alpha: 0.8),
                           ),
                           onPressed: () async {
                             await ChatHistoryService.deleteSession(session.id);
@@ -954,8 +940,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           ListTile(
             horizontalTitleGap: 8,
             leading: Icon(
-              Icons.manage_history_rounded,
-              color: isDark ? Colors.grey[400] : Colors.grey[600],
+              LucideIcons.history,
+              color: BeatriceTheme.mutedText,
               size: 20,
             ),
             title: Text('Task History', style: textStyle),
@@ -970,8 +956,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           ListTile(
             horizontalTitleGap: 8,
             leading: Icon(
-              Icons.tune_rounded,
-              color: isDark ? Colors.grey[400] : Colors.grey[600],
+              LucideIcons.slidersHorizontal,
+              color: BeatriceTheme.mutedText,
               size: 20,
             ),
             title: Text('Settings', style: textStyle),
@@ -996,59 +982,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
-  Widget _buildBackgroundGlows(bool isDark) {
-    return Positioned.fill(
-      child: Stack(
-        children: [
-          Positioned(
-            top: -150,
-            left: -50,
-            child: Container(
-              width: 400,
-              height: 400,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [
-                    isDark
-                        ? const Color(0xFF6366F1).withOpacity(0.24)
-                        : const Color(0xFF4F46E5).withOpacity(0.12),
-                    isDark
-                        ? const Color(0xFF6366F1).withOpacity(0)
-                        : const Color(0xFF4F46E5).withOpacity(0),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          Positioned(
-            bottom: 50,
-            right: -100,
-            child: Container(
-              width: 350,
-              height: 350,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [
-                    isDark
-                        ? const Color(0xFF38BDF8).withOpacity(0.18)
-                        : const Color(0xFF0EA5E9).withOpacity(0.09),
-                    isDark
-                        ? const Color(0xFF38BDF8).withOpacity(0)
-                        : const Color(0xFF0EA5E9).withOpacity(0),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  Widget _buildBackgroundGlows(bool isDark) => const SizedBox.shrink();
 
   Widget _buildModeSelector(bool isDark) {
-    final activeBg = isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0);
+    const activeBg = BeatriceTheme.panel;
 
     return Center(
       child: Container(
@@ -1057,25 +994,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         decoration: BoxDecoration(
           color: activeBg,
           borderRadius: BorderRadius.circular(30),
-          border: Border.all(
-            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.06),
-          ),
+          border: Border.all(color: BeatriceTheme.border),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _buildModeButton(
-              'chat',
-              'Chat',
-              Icons.chat_bubble_outline_rounded,
-              isDark,
-            ),
-            _buildModeButton(
-              'agent',
-              'Agent',
-              Icons.auto_awesome_outlined,
-              isDark,
-            ),
+            _buildModeButton('chat', 'Chat', LucideIcons.messageCircle, isDark),
+            _buildModeButton('agent', 'Agent', LucideIcons.bot, isDark),
           ],
         ),
       ),
@@ -1101,17 +1026,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(26),
-          color: isSelected
-              ? Theme.of(context).colorScheme.primary
-              : Colors.transparent,
+          color: isSelected ? BeatriceTheme.raisedPanel : Colors.transparent,
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.primary.withOpacity(0.20),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
+                    color: Colors.black.withOpacity(0.20),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
                   ),
                 ]
               : null,
@@ -1121,21 +1042,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             Icon(
               icon,
               size: 15,
-              color: isSelected
-                  ? Colors.white
-                  : (isDark
-                        ? const Color(0xFF94A3B8)
-                        : const Color(0xFF475569)),
+              color: isSelected ? BeatriceTheme.text : BeatriceTheme.mutedText,
             ),
             const SizedBox(width: 8),
             Text(
               label,
               style: TextStyle(
                 color: isSelected
-                    ? Colors.white
-                    : (isDark
-                          ? const Color(0xFF94A3B8)
-                          : const Color(0xFF475569)),
+                    ? BeatriceTheme.text
+                    : BeatriceTheme.mutedText,
                 fontWeight: FontWeight.bold,
                 fontSize: 13,
               ),
@@ -1190,9 +1105,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     style: TextStyle(
                       fontSize: 30,
                       fontWeight: FontWeight.w300,
-                      color: isDark
-                          ? const Color(0xFF94A3B8)
-                          : const Color(0xFF64748B),
+                      color: BeatriceTheme.mutedText,
                       letterSpacing: -1.5,
                       height: 1.1,
                     ),
@@ -1203,7 +1116,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     style: TextStyle(
                       fontSize: 30,
                       fontWeight: FontWeight.w600,
-                      color: Theme.of(context).colorScheme.primary,
+                      color: BeatriceTheme.text,
                       letterSpacing: -1.5,
                       height: 1.2,
                     ),
@@ -1219,9 +1132,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w800,
-                  color: isDark
-                      ? const Color(0xFF94A3B8)
-                      : const Color(0xFF475569),
+                  color: BeatriceTheme.mutedText,
                   letterSpacing: 1.5,
                 ),
               ),
@@ -1246,14 +1157,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           vertical: 12,
                         ),
                         decoration: BoxDecoration(
-                          color: isDark
-                              ? const Color(0xFF151D30)
-                              : Colors.white,
+                          color: BeatriceTheme.panel,
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(
-                            color: isDark
-                                ? const Color(0xFF243049).withOpacity(0.4)
-                                : const Color(0xFFE2E8F0),
+                            color: BeatriceTheme.border,
                             width: 1.2,
                           ),
                           boxShadow: [
@@ -1272,9 +1179,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                             style: TextStyle(
                               fontSize: 12.5,
                               fontWeight: FontWeight.w600,
-                              color: isDark
-                                  ? const Color(0xFFF8FAFC)
-                                  : const Color(0xFF1E293B),
+                              color: BeatriceTheme.text,
                             ),
                           ),
                         ),
@@ -1302,12 +1207,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: _isListening
-                  ? Colors.redAccent
-                  : Theme.of(context).cardTheme.color,
+                  ? BeatriceTheme.danger
+                  : BeatriceTheme.raisedPanel,
               border: Border.all(
                 color: _isListening
-                    ? Colors.redAccent
-                    : Theme.of(context).colorScheme.onSurface.withOpacity(0.08),
+                    ? BeatriceTheme.danger
+                    : BeatriceTheme.border,
                 width: 1.2,
               ),
               boxShadow: [
@@ -1318,7 +1223,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 ),
                 if (_isListening)
                   BoxShadow(
-                    color: Colors.redAccent.withOpacity(0.4),
+                    color: BeatriceTheme.danger.withOpacity(0.35),
                     blurRadius: 12,
                     spreadRadius: 2,
                   ),
@@ -1326,10 +1231,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ),
             child: IconButton(
               icon: Icon(
-                _isListening ? Icons.graphic_eq_rounded : Icons.mic_none_rounded,
-                color: _isListening
-                    ? Colors.white
-                    : Theme.of(context).colorScheme.primary,
+                _isListening ? LucideIcons.audioWaveform : LucideIcons.mic,
+                color: _isListening ? Colors.white : BeatriceTheme.text,
               ),
               onPressed: _isLoading ? null : _toggleVoice,
             ),
@@ -1340,7 +1243,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           Expanded(
             child: Container(
               decoration: BoxDecoration(
-                color: Theme.of(context).cardTheme.color,
+                color: BeatriceTheme.raisedPanel,
                 borderRadius: BorderRadius.circular(24),
                 border: Border.all(
                   color: Theme.of(
@@ -1368,7 +1271,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                             : 'Type a command...',
                         hintStyle: TextStyle(
                           fontSize: 13,
-                          color: isDark ? Colors.grey[600] : Colors.grey[400],
+                          color: BeatriceTheme.mutedText,
                         ),
                         contentPadding: const EdgeInsets.symmetric(
                           horizontal: 20,
@@ -1387,8 +1290,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   IconButton(
                     tooltip: 'Open Beatrice Voice',
                     icon: Icon(
-                      Icons.record_voice_over_rounded,
-                      color: Theme.of(context).colorScheme.primary,
+                      LucideIcons.audioWaveform,
+                      color: BeatriceTheme.text,
                     ),
                     onPressed: _openBeatriceVoice,
                   ),
@@ -1396,13 +1299,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     margin: const EdgeInsets.only(right: 6),
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: Theme.of(context).colorScheme.primary,
+                      color: BeatriceTheme.text,
                     ),
                     child: IconButton(
                       icon: const Icon(
-                        Icons.arrow_upward_rounded,
+                        LucideIcons.send,
                         size: 18,
-                        color: Colors.white,
+                        color: BeatriceTheme.black,
                       ),
                       onPressed: _isLoading
                           ? null

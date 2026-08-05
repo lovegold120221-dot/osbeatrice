@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import '../models/chat_message.dart';
+import '../theme/beatrice_theme.dart';
 
 class MessageBubble extends StatelessWidget {
   final ChatMessage message;
@@ -25,9 +26,7 @@ class MessageBubble extends StatelessWidget {
         ),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
-          color: isUser
-              ? Theme.of(context).colorScheme.primary
-              : Theme.of(context).colorScheme.surface,
+          color: isUser ? BeatriceTheme.userBubble : BeatriceTheme.panel,
           borderRadius: BorderRadius.only(
             topLeft: const Radius.circular(20),
             topRight: const Radius.circular(20),
@@ -36,13 +35,12 @@ class MessageBubble extends StatelessWidget {
           ),
           border: isUser
               ? null
-              : Border.all(
-                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.08),
-                  width: 1.2,
-                ),
+              : Border.all(color: BeatriceTheme.border, width: 1.2),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(Theme.of(context).brightness == Brightness.dark ? 0.15 : 0.02),
+              color: Colors.black.withOpacity(
+                Theme.of(context).brightness == Brightness.dark ? 0.15 : 0.02,
+              ),
               blurRadius: 8,
               offset: const Offset(0, 3),
             ),
@@ -54,7 +52,10 @@ class MessageBubble extends StatelessWidget {
             // Action result badge
             if (message.actionResult != null) ...[
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 5,
+                ),
                 margin: const EdgeInsets.only(bottom: 8),
                 decoration: BoxDecoration(
                   color: message.actionResult!.success
@@ -82,7 +83,10 @@ class MessageBubble extends StatelessWidget {
                     ),
                     const SizedBox(width: 6),
                     Text(
-                      message.actionResult!.actionType.toUpperCase().replaceAll('_', ' '),
+                      message.actionResult!.actionType.toUpperCase().replaceAll(
+                        '_',
+                        ' ',
+                      ),
                       style: TextStyle(
                         fontSize: 10,
                         color: message.actionResult!.success
@@ -101,7 +105,7 @@ class MessageBubble extends StatelessWidget {
               SelectableText(
                 message.content,
                 style: TextStyle(
-                  color: Theme.of(context).colorScheme.onPrimary,
+                  color: BeatriceTheme.text,
                   fontSize: 15,
                   height: 1.4,
                 ),
@@ -110,17 +114,18 @@ class MessageBubble extends StatelessWidget {
               MarkdownBody(
                 data: message.content,
                 selectable: true,
-                styleSheet: MarkdownStyleSheet.fromTheme(Theme.of(context)).copyWith(
-                  p: TextStyle(
-                    color: Theme.of(context).colorScheme.onSurface,
-                    fontSize: 15,
-                    height: 1.45,
-                  ),
-                  listBullet: TextStyle(
-                    color: Theme.of(context).colorScheme.onSurface,
-                    fontSize: 15,
-                  ),
-                ),
+                styleSheet: MarkdownStyleSheet.fromTheme(Theme.of(context))
+                    .copyWith(
+                      p: TextStyle(
+                        color: BeatriceTheme.text,
+                        fontSize: 15,
+                        height: 1.45,
+                      ),
+                      listBullet: TextStyle(
+                        color: BeatriceTheme.text,
+                        fontSize: 15,
+                      ),
+                    ),
               ),
             // Timestamp
             const SizedBox(height: 4),
@@ -129,14 +134,12 @@ class MessageBubble extends StatelessWidget {
               style: TextStyle(
                 fontSize: 11,
                 color: isUser
-                    ? Theme.of(context)
-                        .colorScheme
-                        .onPrimary
-                        .withValues(alpha: 0.6)
-                    : Theme.of(context)
-                        .colorScheme
-                        .onSurface
-                        .withValues(alpha: 0.5),
+                    ? Theme.of(
+                        context,
+                      ).colorScheme.onPrimary.withValues(alpha: 0.6)
+                    : Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withValues(alpha: 0.5),
               ),
             ),
           ],

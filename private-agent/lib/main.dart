@@ -8,6 +8,7 @@ import 'config/feature_flags.dart';
 import 'screens/home_screen.dart';
 import 'screens/onboarding_screen.dart';
 import 'overlay_main.dart';
+import 'theme/beatrice_theme.dart';
 
 @pragma("vm:entry-point")
 void overlayMain() {
@@ -94,9 +95,9 @@ class BeatriceOSApp extends StatelessWidget {
           themeMode: currentMode,
           theme: ThemeData(
             brightness: Brightness.dark,
-            fontFamily: 'Inter',
-            primaryColor: const Color(0xFFFFFFFF),
-            scaffoldBackgroundColor: const Color(0xFF000000),
+            primaryColor: BeatriceTheme.text,
+            scaffoldBackgroundColor: BeatriceTheme.black,
+            textTheme: BeatriceTheme.textTheme(ThemeData.dark().textTheme),
             colorScheme: const ColorScheme.dark(
               primary: Color(0xFFFFFFFF),
               secondary: Color(0xFF60A5FA),
@@ -133,9 +134,9 @@ class BeatriceOSApp extends StatelessWidget {
           ),
           darkTheme: ThemeData(
             brightness: Brightness.dark,
-            fontFamily: 'Inter',
-            primaryColor: const Color(0xFFFFFFFF),
-            scaffoldBackgroundColor: const Color(0xFF000000),
+            primaryColor: BeatriceTheme.text,
+            scaffoldBackgroundColor: BeatriceTheme.black,
+            textTheme: BeatriceTheme.textTheme(ThemeData.dark().textTheme),
             colorScheme: const ColorScheme.dark(
               primary: Color(0xFFFFFFFF),
               secondary: Color(0xFF60A5FA),
@@ -163,10 +164,7 @@ class BeatriceOSApp extends StatelessWidget {
               color: const Color(0xFF1A1A1A),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(20),
-                side: BorderSide(
-                  color: const Color(0xFF2A2A2A),
-                  width: 1.2,
-                ),
+                side: BorderSide(color: const Color(0xFF2A2A2A), width: 1.2),
               ),
             ),
           ),
