@@ -46,7 +46,7 @@ import {
 } from '../services/gemini';
 import { generateChatResponseStream } from '../services/ollama';
 import { generateImage } from '../services/flux';
-import { tools, executeTool, setEmbeddedDeviceId } from "../services/tools";
+import { tools, executeTool, setEmbeddedDeviceId, setTaskExecutorPermission, type TaskExecutorPermission } from "../services/tools";
 
 declare global {
   interface Window {
@@ -176,23 +176,35 @@ export default function App() {
   const [responseStyle, setResponseStyle] = useState('');
   const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('system');
   const [ollamaModel, setOllamaModel] = useState('');
+  const [taskExecutorPermission, setTaskExecutorPermissionState] = useState<TaskExecutorPermission>('allow-full');
 
   useEffect(() => {
     const savedUserContext = localStorage.getItem('eburon_userContext');
     const savedResponseStyle = localStorage.getItem('eburon_responseStyle');
     const savedTheme = localStorage.getItem('eburon_theme') as 'light' | 'dark' | 'system' || 'system';
     const savedOllamaModel = localStorage.getItem('eburon_ollamaModel');
+    const savedTaskExecutorPermission = localStorage.getItem('eburon_taskExecutorPermission');
     if (savedUserContext) setUserContext(savedUserContext);
     if (savedResponseStyle) setResponseStyle(savedResponseStyle);
     setTheme(savedTheme);
     if (savedOllamaModel) setOllamaModel(savedOllamaModel);
+    if (savedTaskExecutorPermission === 'ask-first' || savedTaskExecutorPermission === 'allow-full') {
+      setTaskExecutorPermissionState(savedTaskExecutorPermission);
+      setTaskExecutorPermission(savedTaskExecutorPermission);
+    }
   }, []);
+
+  const updateTaskExecutorPermission = (permission: TaskExecutorPermission) => {
+    setTaskExecutorPermissionState(permission);
+    setTaskExecutorPermission(permission);
+  };
 
   const saveSettings = () => {
     localStorage.setItem('eburon_userContext', userContext);
     localStorage.setItem('eburon_responseStyle', responseStyle);
     localStorage.setItem('eburon_theme', theme);
     localStorage.setItem('eburon_ollamaModel', ollamaModel);
+    localStorage.setItem('eburon_taskExecutorPermission', taskExecutorPermission);
     setActiveModal(null);
   };
 
@@ -582,7 +594,8 @@ export default function App() {
           setIsLiveActive(false);
         },
         sessionUserContext,
-        responseStyle
+        responseStyle,
+        taskExecutorPermission,
       );
 
       liveSessionRef.current = await sessionPromise;
@@ -752,7 +765,8 @@ export default function App() {
           stopLiveSession();
         },
         userContext,
-        responseStyle
+        responseStyle,
+        taskExecutorPermission,
       );
 
       liveSessionRef.current = await sessionPromise;
@@ -2252,6 +2266,19 @@ export default function App() {
                             {t}
                           </button>
                         ))}
+                      </div>
+                      <div className="pt-4 border-t border-neutral-800">
+                        <label htmlFor="task-executor-permission" className="block text-sm font-medium text-white mb-1">Task Executor Permissions</label>
+                        <p className="text-xs text-neutral-500 mb-2">Controls whether Beatrice can send a confirmed mobile task to the paired executor immediately.</p>
+                        <select
+                          id="task-executor-permission"
+                          value={taskExecutorPermission}
+                          onChange={(event) => updateTaskExecutorPermission(event.target.value as TaskExecutorPermission)}
+                          className="w-full bg-[#212121] border border-neutral-800 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-neutral-600"
+                        >
+                          <option value="ask-first">Ask First</option>
+                          <option value="allow-full">Allow Full</option>
+                        </select>
                       </div>
                       <button 
                         onClick={saveSettings}

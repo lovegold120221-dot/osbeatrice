@@ -1,5 +1,5 @@
 import { GoogleGenAI, ThinkingLevel, Type, Modality, createPartFromFunctionResponse } from "@google/genai";
-import { executeTool, tools } from "./tools";
+import { executeTool, tools, type TaskExecutorPermission } from "./tools";
 
 const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
 const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
@@ -268,7 +268,8 @@ export function connectLive(
   onerror: (error: any) => void,
   onclose: () => void,
   userContext = '',
-  responseStyle = ''
+  responseStyle = '',
+  taskExecutorPermission: TaskExecutorPermission = 'allow-full',
 ) {
   if (!ai) throw new Error("API key not configured");
 
@@ -314,6 +315,11 @@ TURN-TAKING & INTERRUPTION HANDLING (CRITICAL):
   }
   if (responseStyle) {
     finalSystemPrompt += `\n\nResponse Style (How you should respond):\n${responseStyle}`;
+  }
+  if (taskExecutorPermission === 'ask-first') {
+    finalSystemPrompt += `\n\nTASK EXECUTOR PERMISSION: Ask First. Before calling executeTask, clearly summarize the device plan and wait for the user's unambiguous confirmation. Only then call executeTask with confirmed set to true. Never treat the original request as confirmation.`;
+  } else {
+    finalSystemPrompt += `\n\nTASK EXECUTOR PERMISSION: Allow Full. You may call executeTask when the user asks for a device action. Still ask follow-up questions when the task itself is ambiguous or could cause an important external consequence.`;
   }
 
   const sessionPromise = ai.live.connect({

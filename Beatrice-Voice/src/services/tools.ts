@@ -2,6 +2,8 @@ import { FunctionDeclaration, Type } from "@google/genai";
 import { push, ref, set } from "firebase/database";
 import { auth, database } from "../lib/firebase";
 
+export type TaskExecutorPermission = "ask-first" | "allow-full";
+
 declare global {
   interface Window {
     BeatriceBridge?: { postMessage(message: string): void };
@@ -53,6 +55,10 @@ export const taskerTool: FunctionDeclaration = {
         enum: ["low", "normal", "high", "urgent"],
         description: "The priority level of the task.",
       },
+      confirmed: {
+        type: Type.BOOLEAN,
+        description: "Set true only after the user has clearly confirmed the summarized device plan while Task Executor permission is Ask First.",
+      },
     },
     required: ["task"],
   },
@@ -66,16 +72,32 @@ export const tools = [calculatorTool, calendarTool, taskerTool];
  * pretend it can operate a phone when no private-agent host is connected.
  */
 let embeddedDeviceId: string | null = null;
+let taskExecutorPermission: TaskExecutorPermission = "allow-full";
 
 export function setEmbeddedDeviceId(deviceId: string | null) {
   embeddedDeviceId = deviceId;
 }
 
-function dispatchDeviceTask(args: { task?: string; priority?: string }) {
+export function setTaskExecutorPermission(permission: TaskExecutorPermission) {
+  taskExecutorPermission = permission;
+}
+
+function dispatchDeviceTask(args: {
+  task?: string;
+  priority?: string;
+  confirmed?: boolean;
+}) {
   if (typeof window === "undefined" || !embeddedDeviceId || !auth.currentUser) {
     return {
       status: "unavailable",
       message: "Connect Beatrice Voice to a signed-in paired mobile app before sending a device task.",
+    };
+  }
+
+  if (taskExecutorPermission === "ask-first" && args.confirmed !== true) {
+    return {
+      status: "confirmation_required",
+      message: "Summarize the planned phone actions and ask the user for a clear confirmation. Only after they confirm may you call executeTask again with confirmed set to true.",
     };
   }
 
@@ -85,6 +107,7 @@ function dispatchDeviceTask(args: { task?: string; priority?: string }) {
     ownerUid: auth.currentUser.uid,
     goal: args.task || "",
     priority: args.priority || "normal",
+    permissionMode: taskExecutorPermission,
     status: "incoming",
     createdAt: Date.now(),
   }).then(() => {
