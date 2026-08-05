@@ -21,7 +21,7 @@ conversational voice interface.
   notifications, Shizuku integration, and optional on-device vision support.
 - Local chat sessions, skills, task history, and settings persistence.
 - Optional Telegram polling channel for remote device commands.
-- A dedicated embedded `https://beatrice.eburon.ai` WebView page, opened from
+- A dedicated embedded `https://osbeatrice.vercel.app/` WebView page, opened from
   the Agent input bar without replacing the existing dictation microphone.
 - Firebase Realtime Database task listener for Beatrice Voice task handoff.
 

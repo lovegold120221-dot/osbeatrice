@@ -28,7 +28,7 @@ class BeatriceVoiceScreen extends StatefulWidget {
 }
 
 class _BeatriceVoiceScreenState extends State<BeatriceVoiceScreen> {
-  static final Uri _beatriceUri = Uri.parse('https://beatrice.eburon.ai');
+  static final Uri _beatriceUri = Uri.parse('https://osbeatrice.vercel.app/');
   late final WebViewController _controller;
   bool _isLoading = true;
   String? _loadError;
