@@ -440,7 +440,7 @@ export default function App() {
     if (!user) return;
 
     try {
-      await remove(dbRef(database, `users/${user.uid}/chats/${chatId}`));
+      await remove(dbRef(database, `users/${user.uid}/conversations/${chatId}`));
       if (currentChatId === chatId) {
         clearChat();
       }
@@ -474,7 +474,7 @@ export default function App() {
     try {
       const snapshot = await get(
         query(
-          dbRef(database, `users/${user.uid}/chats`),
+          dbRef(database, `users/${user.uid}/conversations`),
           orderByChild('created_at')
         )
       );
@@ -491,7 +491,7 @@ export default function App() {
         if (count >= 3) break;
         const msgSnapshot = await get(
           query(
-            dbRef(database, `users/${user.uid}/chats/${chat.key}/messages`),
+            dbRef(database, `users/${user.uid}/conversations/${chat.key}/messages`),
             orderByChild('created_at')
           )
         );
@@ -952,7 +952,7 @@ export default function App() {
     }
 
     return onValue(
-      dbRef(database, `users/${user.uid}/chats`),
+      dbRef(database, `users/${user.uid}/conversations`),
       (snapshot) => {
         const sessions: any[] = [];
         snapshot.forEach((child) => {
@@ -975,7 +975,7 @@ export default function App() {
     try {
       const snapshot = await get(
         query(
-          dbRef(database, `users/${user?.uid}/chats/${chatId}/messages`),
+          dbRef(database, `users/${user?.uid}/conversations/${chatId}/messages`),
           orderByChild('created_at')
         )
       );
@@ -1003,6 +1003,8 @@ export default function App() {
   };
 
   const createNewChat = (initialText?: string) => {
+    // A new session must not inherit the prior Gemini Live conversation.
+    stopLiveSession();
     setMessages([]);
     setActiveChatId(null);
     setView('home');
@@ -1019,11 +1021,13 @@ export default function App() {
         // Serialize creation so both are saved to the same Firebase session.
         if (!chatCreationRef.current) {
           chatCreationRef.current = (async () => {
-            const chatsRef = push(dbRef(database, `users/${user.uid}/chats`));
+            const chatsRef = push(dbRef(database, `users/${user.uid}/conversations`));
             const createdAt = Date.now();
-            const title = msg.text.slice(0, 48) + (msg.text.length > 48 ? '...' : '');
+            const normalizedTitle = msg.text.replace(/\s+/g, ' ').trim() || 'New conversation';
+            const title = normalizedTitle.slice(0, 48) + (normalizedTitle.length > 48 ? '...' : '');
             await set(chatsRef, {
               title,
+              title_source: 'first_user_message',
               created_at: createdAt,
               updated_at: createdAt,
             });
@@ -1059,11 +1063,11 @@ export default function App() {
       // Reusing the same id makes retries/turn-complete events idempotent.
       let messageId = msg.id || savedMessageIdsRef.current.get(msg);
       if (!messageId) {
-        messageId = push(dbRef(database, `users/${user.uid}/chats/${chatId}/messages`)).key!;
+        messageId = push(dbRef(database, `users/${user.uid}/conversations/${chatId}/messages`)).key!;
         savedMessageIdsRef.current.set(msg, messageId);
       }
       const createdAt = msg.createdAt || Date.now();
-      await set(dbRef(database, `users/${user.uid}/chats/${chatId}/messages/${messageId}`), {
+      await set(dbRef(database, `users/${user.uid}/conversations/${chatId}/messages/${messageId}`), {
         role: msg.role,
         text: msg.text,
         image_url: imageUrl || null,
@@ -1071,7 +1075,7 @@ export default function App() {
         original_prompt: msg.originalPrompt || null,
         created_at: createdAt,
       });
-      await update(dbRef(database, `users/${user.uid}/chats/${chatId}`), {
+      await update(dbRef(database, `users/${user.uid}/conversations/${chatId}`), {
         updated_at: Date.now(),
       });
     } catch (e) {
