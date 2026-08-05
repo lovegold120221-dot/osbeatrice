@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:developer' as developer;
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -12,8 +13,9 @@ class AiResponse {
 }
 
 class AiService {
-  static const String _defaultBaseUrl =
-      'https://generativelanguage.googleapis.com/v1beta/openai';
+  /// The deployed Beatrice Voice gateway keeps the Gemini credential on the
+  /// server. Flutter sends a device identifier, never an AI provider key.
+  static const String taskApiUrl = 'https://osbeatrice.vercel.app/task_api';
   static const String _defaultModel = 'gemini-3.1-flash-lite';
   static const String nvidiaBaseUrl = 'https://integrate.api.nvidia.com/v1';
   static const String nvidiaDefaultModel = 'z-ai/glm-5.2';
@@ -51,7 +53,8 @@ class AiService {
   }
 
   String? _apiKey;
-  String _baseUrl = _defaultBaseUrl;
+  String _baseUrl = taskApiUrl;
+  String? _deviceId;
   String _model = _defaultModel;
   int _maxSteps = 15;
   bool _disableMaxSteps = false;
@@ -116,7 +119,8 @@ Answer questions, explain concepts, brainstorm, write emails/messages, and chat 
   Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
     _apiKey = prefs.getString('api_key');
-    _baseUrl = prefs.getString('api_base_url') ?? _defaultBaseUrl;
+    _baseUrl = prefs.getString('api_base_url') ?? taskApiUrl;
+    _deviceId = prefs.getString('firebase_task_device_id');
     _model = prefs.getString('api_model') ?? _defaultModel;
     _maxSteps = prefs.getInt('api_max_steps') ?? 15;
     _disableMaxSteps = prefs.getBool('api_disable_max_steps') ?? false;
@@ -128,7 +132,7 @@ Answer questions, explain concepts, brainstorm, write emails/messages, and chat 
     // Fall back to a developer-local API key bundled via a gitignored asset
     // (assets/local_config/ai_test_config.json) when none is saved yet, so the
     // app boots pre-configured without committing secrets to the repo.
-    if (_apiKey == null || _apiKey!.isEmpty) {
+    if (!_usesTaskApi && (_apiKey == null || _apiKey!.isEmpty)) {
       _apiKey = await _loadLocalConfigApiKey();
     }
   }
@@ -206,7 +210,10 @@ Answer questions, explain concepts, brainstorm, write emails/messages, and chat 
     await prefs.setBool('api_use_system_prompt', useSystemPrompt);
   }
 
-  bool get isConfigured => _apiKey != null && _apiKey!.isNotEmpty;
+  bool get _usesTaskApi => _baseUrl.trim() == taskApiUrl;
+
+  bool get isConfigured =>
+      _usesTaskApi || (_apiKey != null && _apiKey!.isNotEmpty);
   String get baseUrl => _baseUrl;
   String get model => _model;
   String get apiKey => _apiKey ?? '';
@@ -217,6 +224,44 @@ Answer questions, explain concepts, brainstorm, write emails/messages, and chat 
   int get maxTokens => _maxTokens;
   bool get useScreenCompression => _useScreenCompression;
   bool get useSystemPrompt => _useSystemPrompt;
+
+  String get _requestUrl {
+    if (_usesTaskApi) return taskApiUrl;
+    if (_baseUrl.endsWith('/chat/completions')) return _baseUrl;
+    return _baseUrl.endsWith('/')
+        ? '${_baseUrl}chat/completions'
+        : '$_baseUrl/chat/completions';
+  }
+
+  Future<Map<String, String>> _requestHeaders() async {
+    if (_usesTaskApi) {
+      _deviceId ??= (await SharedPreferences.getInstance()).getString(
+        'firebase_task_device_id',
+      );
+      if (_deviceId == null || _deviceId!.isEmpty) {
+        _deviceId = 'android-${DateTime.now().microsecondsSinceEpoch}';
+        await (await SharedPreferences.getInstance()).setString(
+          'firebase_task_device_id',
+          _deviceId!,
+        );
+      }
+      final idToken = await FirebaseAuth.instance.currentUser?.getIdToken();
+      if (idToken == null || idToken.isEmpty) {
+        throw Exception('Sign in to Beatrice OS before starting a task.');
+      }
+      return {
+        'Content-Type': 'application/json',
+        'X-Beatrice-Device-Id': _deviceId!,
+        'Authorization': 'Bearer $idToken',
+      };
+    }
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer $_apiKey',
+      'HTTP-Referer': 'https://github.com/orailnoor/private-agent',
+      'X-Title': 'Beatrice OS',
+    };
+  }
 
   int get _effectiveMaxTokens {
     // GLM is a reasoning model. With the app's 1,024-token default it can
@@ -258,7 +303,7 @@ Answer questions, explain concepts, brainstorm, write emails/messages, and chat 
 
   /// Send a message to the AI and get a response.
   Future<String> sendMessage(String message, {bool isAgentMode = true}) async {
-    if (_apiKey == null || _apiKey!.isEmpty) {
+    if (!isConfigured) {
       throw Exception('API Key is not configured. Please go to Settings.');
     }
 
@@ -278,16 +323,7 @@ Answer questions, explain concepts, brainstorm, write emails/messages, and chat 
         ..._conversationHistory,
       ];
 
-      String requestUrl = _baseUrl;
-      if (requestUrl.endsWith('/chat/completions')) {
-        requestUrl = requestUrl; // User already included it
-      } else {
-        if (requestUrl.endsWith('/')) {
-          requestUrl = '${requestUrl}chat/completions';
-        } else {
-          requestUrl = '$requestUrl/chat/completions';
-        }
-      }
+      final requestUrl = _requestUrl;
 
       final requestBody = jsonEncode({
         'model': _model,
@@ -304,12 +340,7 @@ Answer questions, explain concepts, brainstorm, write emails/messages, and chat 
       final response = await http
           .post(
             Uri.parse(requestUrl),
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': 'Bearer $_apiKey',
-              'HTTP-Referer': 'https://github.com/orailnoor/private-agent',
-              'X-Title': 'Beatrice OS',
-            },
+            headers: await _requestHeaders(),
             body: requestBody,
           )
           .timeout(const Duration(minutes: 30));
@@ -373,7 +404,7 @@ Answer questions, explain concepts, brainstorm, write emails/messages, and chat 
     String message, {
     bool isAgentMode = true,
   }) async* {
-    if (_apiKey == null || _apiKey!.isEmpty) {
+    if (!isConfigured) {
       throw Exception('API Key is not configured. Please go to Settings.');
     }
 
@@ -390,25 +421,11 @@ Answer questions, explain concepts, brainstorm, write emails/messages, and chat 
         ..._conversationHistory,
       ];
 
-      String requestUrl = _baseUrl;
-      if (requestUrl.endsWith('/chat/completions')) {
-        requestUrl = requestUrl;
-      } else {
-        if (requestUrl.endsWith('/')) {
-          requestUrl = '${requestUrl}chat/completions';
-        } else {
-          requestUrl = '$requestUrl/chat/completions';
-        }
-      }
+      final requestUrl = _requestUrl;
 
       final client = http.Client();
       final request = http.Request('POST', Uri.parse(requestUrl));
-      request.headers.addAll({
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $_apiKey',
-        'HTTP-Referer': 'https://github.com/orailnoor/private-agent',
-        'X-Title': 'Beatrice OS',
-      });
+      request.headers.addAll(await _requestHeaders());
 
       request.body = jsonEncode({
         'model': _model,
@@ -519,7 +536,7 @@ Answer questions, explain concepts, brainstorm, write emails/messages, and chat 
   /// Send a task execution message — no conversation history, low temperature, limited tokens.
   /// This is much faster and cheaper than sendMessage.
   Future<AiResponse> sendTaskMessage(String systemPrompt, String prompt) async {
-    if (_apiKey == null || _apiKey!.isEmpty) {
+    if (!isConfigured) {
       throw Exception('API Key is not configured. Please go to Settings.');
     }
 
@@ -537,24 +554,12 @@ Answer questions, explain concepts, brainstorm, write emails/messages, and chat 
           {'role': 'user', 'content': prompt},
         ];
 
-        String requestUrl = _baseUrl;
-        if (!requestUrl.endsWith('/chat/completions')) {
-          if (requestUrl.endsWith('/')) {
-            requestUrl = '${requestUrl}chat/completions';
-          } else {
-            requestUrl = '$requestUrl/chat/completions';
-          }
-        }
+        final requestUrl = _requestUrl;
 
         final response = await http
             .post(
               Uri.parse(requestUrl),
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': 'Bearer $_apiKey',
-                'HTTP-Referer': 'https://github.com/orailnoor/private-agent',
-                'X-Title': 'Beatrice OS',
-              },
+              headers: await _requestHeaders(),
               body: jsonEncode({
                 'model': _model,
                 'messages': messages,
