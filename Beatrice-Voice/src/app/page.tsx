@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import Markdown from 'react-markdown';
 import { auth, database, storage } from '../lib/firebase';
 import { onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, GoogleAuthProvider, getRedirectResult, signInWithPopup, signInWithRedirect, User as FirebaseUser } from 'firebase/auth';
-import { ref as dbRef, set, push, get, query, orderByChild, equalTo, remove, onValue, off } from 'firebase/database';
+import { ref as dbRef, set, push, get, query, orderByChild, remove, onValue, update } from 'firebase/database';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { 
   Menu, 
@@ -59,6 +59,7 @@ declare global {
 }
 
 interface Message {
+  id?: string;
   role: 'user' | 'model';
   text: string;
   image?: string;
@@ -66,6 +67,7 @@ interface Message {
   isImageGen?: boolean;
   groundingMetadata?: any;
   originalPrompt?: string;
+  createdAt?: number;
 }
 
 type ViewState = 'splash' | 'auth' | 'home' | 'chat';
@@ -177,6 +179,14 @@ export default function App() {
   const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('system');
   const [ollamaModel, setOllamaModel] = useState('');
   const [taskExecutorPermission, setTaskExecutorPermissionState] = useState<TaskExecutorPermission>('allow-full');
+  const currentChatIdRef = useRef<string | null>(null);
+  const chatCreationRef = useRef<Promise<string> | null>(null);
+  const savedMessageIdsRef = useRef(new WeakMap<object, string>());
+
+  const setActiveChatId = (chatId: string | null) => {
+    currentChatIdRef.current = chatId;
+    setCurrentChatId(chatId);
+  };
 
   useEffect(() => {
     const savedUserContext = localStorage.getItem('eburon_userContext');
@@ -420,7 +430,7 @@ export default function App() {
   const clearChat = () => {
     stopLiveSession();
     setMessages([]);
-    setCurrentChatId(null);
+    setActiveChatId(null);
     setView('home');
     setIsHeaderMenuOpen(false);
   };
@@ -434,7 +444,6 @@ export default function App() {
       if (currentChatId === chatId) {
         clearChat();
       }
-      fetchChatHistory();
     } catch (err) {
       console.error('Failed to delete chat', err);
     }
@@ -493,13 +502,16 @@ export default function App() {
             messages.push(`${m.role === 'user' ? 'User' : 'Beatrice'}: ${m.text}`);
           });
           if (messages.length > 0) {
-            recentChats.push(`[Previous conversation - ${chat.val.title || 'Chat'}]\n${messages.slice(-6).join('\n')}`);
+            recentChats.push(`[Previous conversation - ${chat.val.title || 'Chat'}]\n${messages.slice(-8).join('\n')}`);
             count++;
           }
         }
       }
-      return recentChats.length > 0
-        ? `\n\nHere is context from your past conversations with this user (for memory):\n${recentChats.join('\n\n')}`
+      // Retain a useful cross-session memory window without consuming the
+      // entire Live context with historical transcripts.
+      const memory = recentChats.join('\n\n').slice(-12000);
+      return memory
+        ? `\n\nHere is context from your past conversations with this user (for memory):\n${memory}`
         : '';
     } catch (err) {
       console.error('Failed to fetch conversation memory', err);
@@ -930,43 +942,35 @@ export default function App() {
     setInput(e.target.value);
   };
 
+  // Firebase is the source of truth for the sidebar. This subscription makes
+  // session creation, title changes, and deletions appear without a refresh.
   useEffect(() => {
-    if (user) {
-      fetchChatHistory();
-    } else {
+    if (!user) {
       setChatHistory([]);
-      setCurrentChatId(null);
+      setActiveChatId(null);
+      return;
     }
-  }, [user]);
 
-  const fetchChatHistory = async () => {
-    if (!user) return;
-    try {
-      const snapshot = await get(
-        query(
-          dbRef(database, `users/${user.uid}/chats`),
-          orderByChild('created_at')
-        )
-      );
-      if (snapshot.exists()) {
-        const data: any[] = [];
+    return onValue(
+      dbRef(database, `users/${user.uid}/chats`),
+      (snapshot) => {
+        const sessions: any[] = [];
         snapshot.forEach((child) => {
-          data.push({ id: child.key, ...child.val() });
+          sessions.push({ id: child.key, ...child.val() });
         });
-        // RTDB returns ascending order; reverse for newest first
-        setChatHistory(data.reverse());
-      } else {
-        setChatHistory([]);
-      }
-    } catch (err) {
-      console.error('Failed to fetch chat history', err);
-    }
-  };
+        sessions.sort(
+          (a, b) => (b.updated_at || b.created_at || 0) - (a.updated_at || a.created_at || 0),
+        );
+        setChatHistory(sessions);
+      },
+      (error) => console.error('Failed to sync chat history', error),
+    );
+  }, [user]);
 
   const loadChat = async (chatId: string) => {
     setIsLoading(true);
     setIsSidebarOpen(false);
-    setCurrentChatId(chatId);
+    setActiveChatId(chatId);
 
     try {
       const snapshot = await get(
@@ -980,11 +984,13 @@ export default function App() {
         snapshot.forEach((child) => {
           const m = child.val();
           formattedMessages.push({
+            id: child.key || undefined,
             role: m.role,
             text: m.text,
             image: m.image_url || undefined,
             isImageGen: m.is_image_gen || undefined,
             originalPrompt: m.original_prompt || undefined,
+            createdAt: m.created_at,
           });
         });
         setMessages(formattedMessages);
@@ -998,7 +1004,7 @@ export default function App() {
 
   const createNewChat = (initialText?: string) => {
     setMessages([]);
-    setCurrentChatId(null);
+    setActiveChatId(null);
     setView('home');
     setIsSidebarOpen(false);
   };
@@ -1006,19 +1012,31 @@ export default function App() {
   const saveMessageToDb = async (msg: Message) => {
     if (!user) return;
     try {
-      let chatId = currentChatId;
+      let chatId = currentChatIdRef.current;
 
       if (!chatId) {
-        // Create new chat in RTDB
-        const title = msg.text.slice(0, 30) + (msg.text.length > 30 ? '...' : '');
-        const chatsRef = push(dbRef(database, `users/${user.uid}/chats`));
-        await set(chatsRef, {
-          title: title,
-          created_at: Date.now(),
-        });
-        chatId = chatsRef.key!;
-        setCurrentChatId(chatId);
-        fetchChatHistory();
+        // A user turn and the first model turn can arrive almost together.
+        // Serialize creation so both are saved to the same Firebase session.
+        if (!chatCreationRef.current) {
+          chatCreationRef.current = (async () => {
+            const chatsRef = push(dbRef(database, `users/${user.uid}/chats`));
+            const createdAt = Date.now();
+            const title = msg.text.slice(0, 48) + (msg.text.length > 48 ? '...' : '');
+            await set(chatsRef, {
+              title,
+              created_at: createdAt,
+              updated_at: createdAt,
+            });
+            const id = chatsRef.key!;
+            setActiveChatId(id);
+            return id;
+          })();
+        }
+        try {
+          chatId = await chatCreationRef.current;
+        } finally {
+          chatCreationRef.current = null;
+        }
       }
 
       let imageUrl = msg.image;
@@ -1038,15 +1056,23 @@ export default function App() {
         imageUrl = await getDownloadURL(uploadResult.ref);
       }
 
-      // Save message to RTDB
-      const messagesRef = push(dbRef(database, `users/${user.uid}/chats/${chatId}/messages`));
-      await set(messagesRef, {
+      // Reusing the same id makes retries/turn-complete events idempotent.
+      let messageId = msg.id || savedMessageIdsRef.current.get(msg);
+      if (!messageId) {
+        messageId = push(dbRef(database, `users/${user.uid}/chats/${chatId}/messages`)).key!;
+        savedMessageIdsRef.current.set(msg, messageId);
+      }
+      const createdAt = msg.createdAt || Date.now();
+      await set(dbRef(database, `users/${user.uid}/chats/${chatId}/messages/${messageId}`), {
         role: msg.role,
         text: msg.text,
         image_url: imageUrl || null,
         is_image_gen: msg.isImageGen || null,
         original_prompt: msg.originalPrompt || null,
-        created_at: Date.now(),
+        created_at: createdAt,
+      });
+      await update(dbRef(database, `users/${user.uid}/chats/${chatId}`), {
+        updated_at: Date.now(),
       });
     } catch (e) {
       console.error('Failed to save message to DB', e);
@@ -1150,7 +1176,8 @@ export default function App() {
         let groundingMetadata = null;
         
         try {
-          const stream = generateChatResponseStream(textToSend, history, isThinking, isFastMode, userContext, responseStyle, [], ollamaModel || undefined);
+          const memoryContext = await fetchConversationMemory();
+          const stream = generateChatResponseStream(textToSend, history, isThinking, isFastMode, userContext + memoryContext, responseStyle, [], ollamaModel || undefined);
           for await (const chunk of stream) {
             fullText += chunk.text || '';
             if (chunk.groundingMetadata) {
