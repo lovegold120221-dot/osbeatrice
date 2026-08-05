@@ -29,6 +29,11 @@ class BeatriceVoiceScreen extends StatefulWidget {
 
 class _BeatriceVoiceScreenState extends State<BeatriceVoiceScreen> {
   static final Uri _beatriceUri = Uri.parse('https://osbeatrice.vercel.app/');
+  static const Set<String> _trustedAuthHosts = {
+    'osbeatrice.vercel.app',
+    'beatrice-os.firebaseapp.com',
+    'accounts.google.com',
+  };
   late final WebViewController _controller;
   bool _isLoading = true;
   String? _loadError;
@@ -74,8 +79,11 @@ class _BeatriceVoiceScreenState extends State<BeatriceVoiceScreen> {
           },
           onNavigationRequest: (request) {
             final uri = Uri.tryParse(request.url);
-            // Keep the embedded experience constrained to Beatrice itself.
-            if (uri != null && uri.scheme == 'https' && uri.host == _beatriceUri.host) {
+            // Google/Firebase authentication uses a short redirect chain. Keep
+            // it inside the embedded screen, but do not allow arbitrary links.
+            if (uri != null &&
+                uri.scheme == 'https' &&
+                _trustedAuthHosts.contains(uri.host)) {
               return NavigationDecision.navigate;
             }
             return NavigationDecision.prevent;

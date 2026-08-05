@@ -4,7 +4,7 @@ import Image from 'next/image';
 import { motion, AnimatePresence } from 'motion/react';
 import Markdown from 'react-markdown';
 import { auth, database, storage } from '../lib/firebase';
-import { onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, GoogleAuthProvider, signInWithPopup, User as FirebaseUser } from 'firebase/auth';
+import { onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, GoogleAuthProvider, getRedirectResult, signInWithPopup, signInWithRedirect, User as FirebaseUser } from 'firebase/auth';
 import { ref as dbRef, set, push, get, query, orderByChild, equalTo, remove, onValue, off } from 'firebase/database';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { 
@@ -54,6 +54,7 @@ declare global {
       hasSelectedApiKey: () => Promise<boolean>;
       openSelectKey: () => Promise<void>;
     };
+    BeatriceBridge?: { postMessage(message: string): void };
   }
 }
 
@@ -205,6 +206,21 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
+  // Android WebView does not offer a reliable pop-up window for OAuth. It
+  // returns through the same trusted WebView using Firebase's redirect flow;
+  // regular browsers keep the familiar pop-up experience below.
+  useEffect(() => {
+    let active = true;
+    getRedirectResult(auth).catch((err: any) => {
+      if (active && err.code !== 'auth/null-user') {
+        setAuthError(err.message || 'Google sign in failed');
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
   useEffect(() => {
     const onDeviceReady = (event: Event) => {
       const deviceId = (event as CustomEvent<{ deviceId?: string }>).detail?.deviceId;
@@ -295,8 +311,16 @@ export default function App() {
     setAuthError('');
     try {
       const provider = new GoogleAuthProvider();
+      if (window.BeatriceBridge) {
+        await signInWithRedirect(auth, provider);
+        return;
+      }
       await signInWithPopup(auth, provider);
     } catch (err: any) {
+      if (err.code === 'auth/popup-blocked') {
+        await signInWithRedirect(auth, new GoogleAuthProvider());
+        return;
+      }
       if (err.code !== 'auth/popup-closed-by-user') {
         setAuthError(err.message || 'Google sign in failed');
       }
