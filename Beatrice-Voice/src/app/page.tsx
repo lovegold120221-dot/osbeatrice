@@ -46,7 +46,7 @@ import {
 } from '../services/gemini';
 import { generateChatResponseStream } from '../services/ollama';
 import { generateImage } from '../services/flux';
-import { tools, executeTool, setEmbeddedDeviceId, setTaskExecutorPermission, type TaskExecutorPermission } from "../services/tools";
+import { tools, executeTool, pairEmbeddedDevice, setEmbeddedDeviceId, setTaskExecutorPermission, type TaskExecutorPermission } from "../services/tools";
 
 declare global {
   interface Window {
@@ -179,6 +179,7 @@ export default function App() {
   const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('system');
   const [ollamaModel, setOllamaModel] = useState('');
   const [taskExecutorPermission, setTaskExecutorPermissionState] = useState<TaskExecutorPermission>('allow-full');
+  const [pairedDeviceId, setPairedDeviceId] = useState<string | null>(null);
   const currentChatIdRef = useRef<string | null>(null);
   const chatCreationRef = useRef<Promise<string> | null>(null);
   const savedMessageIdsRef = useRef(new WeakMap<object, string>());
@@ -246,11 +247,28 @@ export default function App() {
   useEffect(() => {
     const onDeviceReady = (event: Event) => {
       const deviceId = (event as CustomEvent<{ deviceId?: string }>).detail?.deviceId;
-      if (deviceId) setEmbeddedDeviceId(deviceId);
+      if (!deviceId) return;
+      localStorage.setItem('eburon_pairedDeviceId', deviceId);
+      setEmbeddedDeviceId(deviceId);
+      setPairedDeviceId(deviceId);
     };
     window.addEventListener('beatrice-device-ready', onDeviceReady);
     return () => window.removeEventListener('beatrice-device-ready', onDeviceReady);
   }, []);
+
+  useEffect(() => {
+    if (!user || !pairedDeviceId) return;
+    void pairEmbeddedDevice(pairedDeviceId)
+      .then((paired) => {
+        if (!paired) return;
+        window.BeatriceBridge?.postMessage(JSON.stringify({
+          type: 'device.pair',
+          deviceId: pairedDeviceId,
+          ownerUid: user.uid,
+        }));
+      })
+      .catch((error) => console.error('Failed to pair mobile agent', error));
+  }, [user, pairedDeviceId]);
 
   useEffect(() => {
     let stopTaskListener: (() => void) | undefined;

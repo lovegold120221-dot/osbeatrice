@@ -1,5 +1,5 @@
 import { FunctionDeclaration, Type } from "@google/genai";
-import { push, ref, set } from "firebase/database";
+import { get, push, ref, set, update } from "firebase/database";
 import { auth, database } from "../lib/firebase";
 
 export type TaskExecutorPermission = "ask-first" | "allow-full";
@@ -82,7 +82,33 @@ export function setTaskExecutorPermission(permission: TaskExecutorPermission) {
   taskExecutorPermission = permission;
 }
 
-function dispatchDeviceTask(args: {
+/**
+ * Registers the Flutter-generated device id against the currently signed-in
+ * Beatrice account. Both records are written atomically so the web app can
+ * find its paired device and task dispatch can verify ownership.
+ */
+export async function pairEmbeddedDevice(deviceId: string) {
+  const user = auth.currentUser;
+  if (!deviceId || !user) return false;
+
+  const pairedAt = Date.now();
+  await update(ref(database), {
+    [`users/${user.uid}/devices/${deviceId}`]: {
+      deviceId,
+      pairedAt,
+      lastSeenAt: pairedAt,
+    },
+    [`devicePairs/${deviceId}`]: {
+      deviceId,
+      ownerUid: user.uid,
+      pairedAt,
+      lastSeenAt: pairedAt,
+    },
+  });
+  return true;
+}
+
+async function dispatchDeviceTask(args: {
   task?: string;
   priority?: string;
   confirmed?: boolean;
@@ -101,8 +127,16 @@ function dispatchDeviceTask(args: {
     };
   }
 
+  const pairing = await get(ref(database, `devicePairs/${embeddedDeviceId}`));
+  if (!pairing.exists() || pairing.val()?.ownerUid !== auth.currentUser.uid) {
+    return {
+      status: "unavailable",
+      message: "This mobile agent is not paired with the signed-in Beatrice account yet.",
+    };
+  }
+
   const taskRef = push(ref(database, `deviceTasks/${embeddedDeviceId}`));
-  return set(taskRef, {
+  await set(taskRef, {
     id: taskRef.key,
     ownerUid: auth.currentUser.uid,
     goal: args.task || "",
@@ -110,12 +144,11 @@ function dispatchDeviceTask(args: {
     permissionMode: taskExecutorPermission,
     status: "incoming",
     createdAt: Date.now(),
-  }).then(() => {
-    window.dispatchEvent(new CustomEvent('beatrice-task-created', {
-      detail: { deviceId: embeddedDeviceId, taskId: taskRef.key },
-    }));
-    return { status: "accepted", taskId: taskRef.key, willContinue: true };
   });
+  window.dispatchEvent(new CustomEvent('beatrice-task-created', {
+    detail: { deviceId: embeddedDeviceId, taskId: taskRef.key },
+  }));
+  return { status: "accepted", taskId: taskRef.key, willContinue: true };
 }
 
 export async function executeTool(name: string, args: any) {

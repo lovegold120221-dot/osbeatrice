@@ -19,6 +19,7 @@ class FirebaseTaskBridge {
   StreamSubscription<DatabaseEvent>? _subscription;
   late DatabaseReference _tasks;
   String? deviceId;
+  String? _pairedOwnerUid;
 
   Future<void> init() async {
     final auth = FirebaseAuth.instance;
@@ -31,10 +32,26 @@ class FirebaseTaskBridge {
       deviceId = 'android-${DateTime.now().microsecondsSinceEpoch}';
       await prefs.setString('firebase_task_device_id', deviceId!);
     }
+    _pairedOwnerUid = prefs.getString('firebase_task_owner_uid');
     _tasks = FirebaseDatabase.instance.ref('deviceTasks/$deviceId');
-    _subscription = _tasks.onChildAdded.listen(_onTaskAdded, onError: (Object error) {
-      developer.log('Firebase task bridge listener failed: $error', name: 'BeatriceOS');
-    });
+    _subscription = _tasks.onChildAdded.listen(
+      _onTaskAdded,
+      onError: (Object error) {
+        developer.log(
+          'Firebase task bridge listener failed: $error',
+          name: 'BeatriceOS',
+        );
+      },
+    );
+  }
+
+  /// Stores the Beatrice Voice account currently paired through the trusted
+  /// in-app WebView. Tasks from any other Firebase account are ignored.
+  Future<void> pairWithOwner(String ownerUid) async {
+    if (ownerUid.trim().isEmpty) return;
+    _pairedOwnerUid = ownerUid;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('firebase_task_owner_uid', ownerUid);
   }
 
   Future<void> _onTaskAdded(DatabaseEvent event) async {
@@ -42,6 +59,14 @@ class FirebaseTaskBridge {
     if (value is! Map) return;
     final task = Map<String, dynamic>.from(value);
     if (task['status'] != 'incoming') return;
+    final ownerUid = task['ownerUid'] as String?;
+    if (_pairedOwnerUid == null || ownerUid != _pairedOwnerUid) {
+      developer.log(
+        'Ignoring task that does not belong to the paired Beatrice account.',
+        name: 'BeatriceOS',
+      );
+      return;
+    }
     final taskRef = event.snapshot.ref;
 
     final claim = await taskRef.runTransaction((current) {
@@ -58,14 +83,24 @@ class FirebaseTaskBridge {
 
     final goal = task['goal'] as String?;
     if (goal == null || goal.trim().isEmpty) {
-      await taskRef.update({'status': 'failed', 'error': 'Task goal is missing.'});
+      await taskRef.update({
+        'status': 'failed',
+        'error': 'Task goal is missing.',
+      });
       return;
     }
 
-    await taskRef.update({'status': 'running', 'startedAt': ServerValue.timestamp});
+    await taskRef.update({
+      'status': 'running',
+      'startedAt': ServerValue.timestamp,
+    });
     try {
       final result = await actionHandler.execute(
-        AgentAction(action: 'execute_task', params: {'goal': goal}, response: goal),
+        AgentAction(
+          action: 'execute_task',
+          params: {'goal': goal},
+          response: goal,
+        ),
         aiService: aiService,
         onProgress: (message) {
           taskRef.child('events').push().set({
@@ -73,7 +108,10 @@ class FirebaseTaskBridge {
             'message': message,
             'at': ServerValue.timestamp,
           });
-          taskRef.update({'statusMessage': message, 'updatedAt': ServerValue.timestamp});
+          taskRef.update({
+            'statusMessage': message,
+            'updatedAt': ServerValue.timestamp,
+          });
         },
       );
       await taskRef.update({

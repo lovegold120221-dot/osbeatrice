@@ -346,6 +346,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           aiService: _aiService,
           actionHandler: _actionHandler,
           deviceId: _firebaseTaskBridge.deviceId,
+          onPairOwner: _firebaseTaskBridge.pairWithOwner,
         ),
       ),
     );

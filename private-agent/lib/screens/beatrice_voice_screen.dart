@@ -17,11 +17,13 @@ class BeatriceVoiceScreen extends StatefulWidget {
     required this.aiService,
     required this.actionHandler,
     required this.deviceId,
+    required this.onPairOwner,
   });
 
   final AiService aiService;
   final ActionHandler actionHandler;
   final String? deviceId;
+  final Future<void> Function(String ownerUid) onPairOwner;
 
   @override
   State<BeatriceVoiceScreen> createState() => _BeatriceVoiceScreenState();
@@ -41,9 +43,10 @@ class _BeatriceVoiceScreenState extends State<BeatriceVoiceScreen> {
   @override
   void initState() {
     super.initState();
-    final params = AndroidWebViewControllerCreationParams.fromPlatformWebViewControllerCreationParams(
-      const PlatformWebViewControllerCreationParams(),
-    );
+    final params =
+        AndroidWebViewControllerCreationParams.fromPlatformWebViewControllerCreationParams(
+          const PlatformWebViewControllerCreationParams(),
+        );
     _controller = WebViewController.fromPlatformCreationParams(params)
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setBackgroundColor(Colors.black)
@@ -108,13 +111,28 @@ class _BeatriceVoiceScreenState extends State<BeatriceVoiceScreen> {
     try {
       request = jsonDecode(message.message) as Map<String, dynamic>;
     } catch (_) {
-      await _emitEvent({'type': 'task.error', 'error': 'Invalid bridge message.'});
+      await _emitEvent({
+        'type': 'task.error',
+        'error': 'Invalid bridge message.',
+      });
       return;
     }
 
     if (request['type'] == 'task.cancel') {
       widget.actionHandler.cancelTask();
       await _emitEvent({'type': 'task.cancelled', 'id': request['id']});
+      return;
+    }
+
+    if (request['type'] == 'device.pair') {
+      final deviceId = request['deviceId'] as String?;
+      final ownerUid = request['ownerUid'] as String?;
+      if (deviceId == widget.deviceId &&
+          ownerUid != null &&
+          ownerUid.isNotEmpty) {
+        await widget.onPairOwner(ownerUid);
+        await _emitEvent({'type': 'device.paired', 'deviceId': deviceId});
+      }
       return;
     }
 
@@ -139,13 +157,14 @@ class _BeatriceVoiceScreenState extends State<BeatriceVoiceScreen> {
   Future<void> _runTask(String id, String goal) async {
     try {
       final result = await widget.actionHandler.execute(
-        AgentAction(action: 'execute_task', params: {'goal': goal}, response: goal),
+        AgentAction(
+          action: 'execute_task',
+          params: {'goal': goal},
+          response: goal,
+        ),
         aiService: widget.aiService,
-        onProgress: (message) => _emitEvent({
-          'type': 'task.progress',
-          'id': id,
-          'message': message,
-        }),
+        onProgress: (message) =>
+            _emitEvent({'type': 'task.progress', 'id': id, 'message': message}),
       );
       await _emitEvent({
         'type': result.success ? 'task.result' : 'task.error',
