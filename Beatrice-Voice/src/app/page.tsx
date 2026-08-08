@@ -319,6 +319,7 @@ export default function App() {
   const [isLiveActive, setIsLiveActive] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [liveTranscription, setLiveTranscription] = useState('');
+  const [isBackgroundActive, setIsBackgroundActive] = useState(false);
   const [attachment, setAttachment] = useState<{ url: string, type: string } | null>(null);
   const [showImageSettings, setShowImageSettings] = useState(false);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
@@ -352,7 +353,62 @@ export default function App() {
   const shouldReconnectRef = useRef(false);
   const reconnectAttemptsRef = useRef(0);
   const isReconnectingRef = useRef(false);
+  const isBackgroundActiveRef = useRef(false);
   const stopTaskListenerRef = useRef<(() => void) | undefined>(undefined);
+
+   // Page Visibility API: keep audio alive when tab goes to background
+  useEffect(() => {
+    let pendingReconnectTimeout: NodeJS.Timeout | null = null;
+
+    const handleVisibilityChange = async () => {
+      const hidden = document.hidden;
+      
+      if (hidden) {
+        console.log('[VOICE] Tab hidden — keeping voice session alive');
+        isBackgroundActiveRef.current = true;
+        
+         // For voice mode, stop mic but keep live session open
+        if (isVoiceOpen && streamRef.current) {
+          try {
+            streamRef.current.getTracks().forEach(track => track.stop());
+            streamRef.current = null;
+          } catch (e) {
+            console.warn('[VOICE] Stopped mic on tab hide:', e);
+          }
+        }
+      } else {
+        console.log('[VOICE] Tab visible again — checking connection');
+        isBackgroundActiveRef.current = false;
+        
+         // Re-verify connection is good
+        if (isLiveActive && shouldReconnectRef.current) {
+          reconnectAttemptsRef.current += 1;
+          console.log('[VOICE] Auto-reconnect after tab show', { reconnectAttemptsRef: reconnectAttemptsRef.current });
+          setVoiceStatus('Reconnecting voice session...');
+          
+          if (pendingReconnectTimeout) clearTimeout(pendingReconnectTimeout);
+          pendingReconnectTimeout = setTimeout(async () => {
+            if (shouldReconnectRef.current) {
+              stopLiveSession();
+              await new Promise(r => setTimeout(r, 500));
+              if (isVoiceOpen) {
+                await startLiveSession();
+              } else {
+                await startChatLiveSession();
+              }
+            }
+            pendingReconnectTimeout = null;
+          }, 2000);
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      if (pendingReconnectTimeout) clearTimeout(pendingReconnectTimeout);
+    };
+  }, [isVoiceOpen, isLiveActive]);
 
   const setActiveChatId = (chatId: string | null) => {
     currentChatIdRef.current = chatId;
@@ -1154,10 +1210,33 @@ export default function App() {
       try { source.stop(); } catch (_) {}
     }
     scheduledAudioSourcesRef.current = [];
+    stopBgKeepalive();
     nextAudioStartRef.current = 0;
     outputAnalyserRef.current = null;
     isPlayingRef.current = false;
     setIsSpeaking(false);
+  };
+
+   // Background audio keepalive: small oscillator keeps AudioContext alive when tab hidden
+  let _bgKeepaliveNode: OscillatorNode | null = null;
+  const startBgKeepalive = () => {
+    if (_bgKeepaliveNode || !audioContextRef.current) return;
+    const ctx = audioContextRef.current;
+    try {
+      _bgKeepaliveNode = ctx.createOscillator();
+      const gain = ctx.createGain();
+      gain.gain.value = 0; // silent
+      _bgKeepaliveNode.connect(gain);
+      gain.connect(ctx.destination);
+      _bgKeepaliveNode.start();
+    } catch (_) {}
+  };
+  const stopBgKeepalive = () => {
+    if (_bgKeepaliveNode) {
+      try { _bgKeepaliveNode.stop(); } catch (_) {}
+      _bgKeepaliveNode.disconnect();
+      _bgKeepaliveNode = null;
+    }
   };
 
   // Gemini Live sends short 24 kHz PCM chunks. Scheduling every available
@@ -1166,6 +1245,11 @@ export default function App() {
   const scheduleAudioPlayback = () => {
     const context = audioContextRef.current;
     if (!context || audioQueueRef.current.length === 0) return;
+    // Start background keepalive when first chunk arrives in bg mode
+    if (isBackgroundActiveRef.current && !isPlayingRef.current) {
+      startBgKeepalive();
+    }
+
 
     const queuedSeconds = audioQueueRef.current.reduce(
       (total, chunk) => total + chunk.length / 24000,
@@ -1208,6 +1292,10 @@ export default function App() {
           isPlayingRef.current = false;
           nextAudioStartRef.current = 0;
           setIsSpeaking(false);
+          // In bg mode, keep scheduling silent ticks to hold context alive
+          if (isBackgroundActiveRef.current) {
+            setTimeout(() => scheduleAudioPlayback(), 1500);
+          }
         } else {
           scheduleAudioPlayback();
         }
@@ -1269,6 +1357,8 @@ export default function App() {
     stopLevelMonitor();
     setIsLiveActive(false);
     setIsVoiceOpen(false);
+    stopBgKeepalive();
+    setIsBackgroundActive(false);
     setIsSpeaking(false);
     setLiveTranscription('');
     clearAudioPlayback();
