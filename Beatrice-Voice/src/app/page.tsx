@@ -3114,44 +3114,6 @@ export default function App() {
           )}
         </AnimatePresence>
 
-        {/* Floating Voice Mini-Player */}
-        <AnimatePresence>
-          {isVoiceOpen && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 20 }}
-              className="absolute bottom-[80px] left-4 right-4 z-[50]"
-            >
-              <div className="bg-[#1a1a1a]/90 backdrop-blur-xl border border-white/10 rounded-2xl p-3 shadow-2xl">
-                <div className="flex items-center space-x-3">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center flex-shrink-0">
-                    <motion.div
-                      animate={{ scale: [1, 1.2, 1] }}
-                      transition={{ duration: 2, repeat: Infinity }}
-                      className="w-3 h-3 rounded-full bg-white"
-                    />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-white truncate">Beatrice is listening</p>
-                    {isSpeaking && (
-                      <p className="text-xs text-neutral-400 truncate">
-                        {liveTranscription ? liveTranscription.slice(0, 80) + '...' : 'Playing response...'}
-                      </p>
-                    )}
-                  </div>
-                  <button
-                    onClick={() => { toggleVoiceMode(false); setIsBackgroundActive(false); }}
-                    className="w-10 h-10 rounded-full bg-red-500/20 hover:bg-red-500/30 flex items-center justify-center flex-shrink-0 transition-colors"
-                  >
-                    <Square size={16} className="text-red-400" />
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
       </div>
     </div>
   );
