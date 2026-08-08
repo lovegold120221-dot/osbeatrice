@@ -125,7 +125,6 @@ Answer questions, explain concepts, brainstorm, write emails/messages, and chat 
         prefs.getString('api_base_url') ??
         localConfig['api_base_url'] ??
         taskApiUrl;
-    _deviceId = prefs.getString('firebase_task_device_id');
     _model = prefs.getString('api_model') ?? localConfig['api_model'] ?? _defaultModel;
     _maxSteps = prefs.getInt('api_max_steps') ?? 15;
     _disableMaxSteps = prefs.getBool('api_disable_max_steps') ?? false;

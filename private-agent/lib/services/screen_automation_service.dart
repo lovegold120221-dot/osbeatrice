@@ -250,12 +250,19 @@ class ScreenAutomationService {
       String type = className.split('.').last;
       if (type == 'TextView') {
         type = 'text';
-      } else if (type == 'Button') type = 'btn';
-      else if (type == 'Switch') type = 'toggle';
-      else if (type == 'ImageView') type = 'img';
-      else if (type == 'EditText') type = 'input';
-      else if (type == 'FrameLayout' || type == 'LinearLayout') type = 'view';
-      else type = type.toLowerCase();
+      } else if (type == 'Button') {
+        type = 'btn';
+      } else if (type == 'Switch') {
+        type = 'toggle';
+      } else if (type == 'ImageView') {
+        type = 'img';
+      } else if (type == 'EditText') {
+        type = 'input';
+      } else if (type == 'FrameLayout' || type == 'LinearLayout') {
+        type = 'view';
+      } else {
+        type = type.toLowerCase();
+      }
 
       final label = displayText.isNotEmpty ? '"$displayText"' : '(no text)';
       final tagStr = tags.isNotEmpty ? '[${tags.join(",")}]' : '';

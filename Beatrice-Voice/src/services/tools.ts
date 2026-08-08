@@ -34,7 +34,7 @@ const calendarTool: FunctionDeclaration = {
 export const taskerTool: FunctionDeclaration = {
   name: "executeTask",
   description:
-    "Delegate a device task to the Beatrice OS agent. Use this when the user asks for a mobile action such as opening an app, sending a message, or changing a system setting. The agent executes asynchronously; the conversation continues immediately. Only the skill id and parameters matter.",
+    "Delegate a device task to the Beatrice OS agent. Use this when the user asks for a mobile action such as opening an app, sending a message, or changing a system setting. The agent executes asynchronously; the conversation continues immediately. Use the registered skill id and exact parameters. If the user asks for something with no matching skill, call skill.generate to create one first, then execute it.",
   behavior: Behavior.NON_BLOCKING,
   parameters: {
     type: Type.OBJECT,

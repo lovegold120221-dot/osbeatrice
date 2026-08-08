@@ -738,12 +738,13 @@ Step ${step + 1}/${_aiService.maxSteps}. Look at the text dump and coordinates. 
       int delay = 1200;
       if (step.action == 'open_app') {
         delay = 3000;
-      } else if (step.action == 'type_text')
+      } else if (step.action == 'type_text') {
         delay = 2000;
-      else if (step.action == 'click_text' || step.action == 'click_at')
+      } else if (step.action == 'click_text' || step.action == 'click_at') {
         delay = 1500;
-      else if (step.action == 'scroll')
+      } else if (step.action == 'scroll') {
         delay = 1000;
+      }
 
       await Future.delayed(Duration(milliseconds: delay));
 

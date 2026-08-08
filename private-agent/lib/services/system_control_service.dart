@@ -32,7 +32,7 @@ class SystemControlService {
   Future<String> setBrightness(int level) async {
     try {
       final brightness = (level / 100).clamp(0.0, 1.0);
-      await ScreenBrightness().setScreenBrightness(brightness);
+      await ScreenBrightness().setApplicationScreenBrightness(brightness);
       return 'Brightness set to $level%';
     } catch (e) {
       return 'Error setting brightness: $e';
@@ -42,7 +42,7 @@ class SystemControlService {
   /// Get current brightness (0-100)
   Future<int> getBrightness() async {
     try {
-      final brightness = await ScreenBrightness().current;
+      final brightness = await ScreenBrightness().application;
       return (brightness * 100).round();
     } catch (e) {
       return -1;

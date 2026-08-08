@@ -470,7 +470,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                         bool? result =
                             await FlutterOverlayWindow.requestPermission();
                         if (result != true) {
-                          if (mounted) {
+                          if (context.mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
                                 content: Text(
