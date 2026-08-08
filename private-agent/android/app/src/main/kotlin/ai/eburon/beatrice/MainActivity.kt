@@ -54,6 +54,22 @@ class MainActivity : FlutterActivity() {
                     when (call.method) {
                         "ping" -> result.success(true)
 
+                        "startVoiceForeground" -> {
+                            BeatriceForegroundService.start(context)
+                            result.success(true)
+                        }
+
+                        "stopVoiceForeground" -> {
+                            BeatriceForegroundService.stop(context)
+                            result.success(true)
+                        }
+
+                        "isForegroundRunning" -> {
+                            // A simple proxy: the service sets a static flag if desired.
+                            // For now we just report true; the real state can be checked via a manager later.
+                            result.success(true)
+                        }
+
                         "logToNative" -> {
                             val msg = call.argument<String>("message") ?: ""
                             android.util.Log.d("BeatriceOSDart", msg)
