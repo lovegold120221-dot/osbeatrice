@@ -991,8 +991,8 @@ export default function App() {
 
       // Simple energy-based VAD — only send audio when speech is detected
       let vadSilenceFrames = 0;
-      const VAD_THRESHOLD = 0.008;
-      const VAD_HANGOVER = 15;
+      const VAD_THRESHOLD = 0.005;
+      const VAD_HANGOVER = 8;
 
       const sessionPromise = connectLive(
         (sessionPromise) => {
@@ -1164,11 +1164,11 @@ export default function App() {
       0,
     );
     // Buffer a short lead before the first sample, then stay ahead of playback.
-    if (!isPlayingRef.current && queuedSeconds < 0.12) return;
+    if (!isPlayingRef.current && queuedSeconds < 0.06) return;
 
     isPlayingRef.current = true;
     setIsSpeaking(true);
-    let startAt = Math.max(nextAudioStartRef.current, context.currentTime + 0.04);
+    let startAt = Math.max(nextAudioStartRef.current, context.currentTime + 0.02);
 
     while (audioQueueRef.current.length > 0) {
       const pcmData = audioQueueRef.current.shift()!;
@@ -1212,30 +1212,25 @@ export default function App() {
 
   // Natural interruption handling - when user speaks while agent is speaking
   const handleUserInterruption = () => {
-    console.log('Handling user interruption...');
-    
-    // 1. Clear audio queue and stop current playback
+    console.log('[VOICE] user interruption');
+
+    // 1. Stop current playback immediately
     clearAudioPlayback();
-    
-    // 2. Send acknowledgment through live session if available
+
+    // 2. Send a minimal, natural acknowledgment so the model knows we yielded.
     if (liveSessionRef.current) {
-      // Brief, natural human-like acknowledgments
       const acknowledgments = [
-        "Yup, go on.",
-        "Ah huh, I'm listening.",
-        "What is it?",
-        "Yes?",
+        "Yup.",
+        "Ah huh.",
+        "Mm?",
         "Go on.",
-        "Mm-hmm.",
-        "Right, continue.",
-        "I'm here."
+        "Yeah?",
+        "I'm here.",
       ];
       const acknowledgment = acknowledgments[Math.floor(Math.random() * acknowledgments.length)];
-      
-      // Send as text input to the live session
       liveSessionRef.current.sendClientContent({
         turns: [{ role: 'user', parts: [{ text: acknowledgment }] }],
-        turnComplete: true
+        turnComplete: false,
       });
     }
   };
