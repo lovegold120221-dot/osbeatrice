@@ -2447,8 +2447,8 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="p-10 flex items-center justify-center gap-8 pb-16 relative z-10">
-                {/* Chat / text input redirect */}
+              <div className="p-10 flex items-center justify-between pb-16 relative z-10 w-full px-8">
+                {/* Chat / text input redirect — pinned left, 20px from edge */}
                 <button
                   onClick={() => {
                     stopLiveSession();
@@ -2456,27 +2456,29 @@ export default function App() {
                     setTimeout(() => textareaRef.current?.focus(), 100);
                   }}
                   className="w-14 h-14 rounded-full bg-[#1a1a1a] border border-neutral-800 flex items-center justify-center text-white hover:bg-[#2a2a2a] transition-all hover:scale-105"
+                  style={{ marginLeft: 20 }}
                   aria-label="Open text chat"
                 >
                   <MessageSquare size={22} />
                 </button>
 
-                {/* Mic / end voice session */}
+                {/* Stop / end voice session */}
                 <button
                   onClick={stopLiveSession}
                   className="w-16 h-16 bg-red-500 hover:bg-red-600 rounded-full flex items-center justify-center text-white shadow-[0_0_30px_rgba(239,68,68,0.5)] transition-all hover:scale-105"
                   aria-label="End voice session"
                 >
-                  <Mic size={28} />
+                  <Square size={28} fill="white" />
                 </button>
 
-                {/* Camera / real-time vision */}
+                {/* Camera / real-time vision — pinned right, 20px from edge */}
                 <button
                   onClick={() => {
                     stopLiveSession();
                     startCameraWithVision();
                   }}
                   className="w-14 h-14 rounded-full bg-[#1a1a1a] border border-neutral-800 flex items-center justify-center text-white hover:bg-[#2a2a2a] transition-all hover:scale-105"
+                  style={{ marginRight: 20 }}
                   aria-label="Open camera with vision"
                 >
                   <Video size={22} />
