@@ -743,17 +743,20 @@ export default function App() {
     else timePrefix = 'Evening';
 
     const userName = user?.displayName?.split(' ')[0] || user?.email?.split('@')[0];
-    const namePart = userName ? `, ${userName}` : '';
+    const namePart = userName ? ` ${userName}` : '';
 
+    // These intros feel like Beatrice is starting the conversation herself,
+    // not answering an invisible prompt. They are open-ended, situational,
+    // and warm — as if she just noticed the user and decided to speak.
     const greetings = [
-      `Hey${namePart}! What's up?`,
-      `Hey${namePart}, how's it going?`,
-      `What's good${namePart}?`,
-      `Yo${namePart}! What's happening?`,
-      `Hi${namePart}! What's on your mind?`,
-      `Hey${namePart}! I'm around if you need anything.`,
-      `Good ${timePrefix.toLowerCase()}${namePart}! What's up?`,
-      `Good ${timePrefix.toLowerCase()}${namePart}! How are you doing?`,
+      `Hey${namePart}! I was just thinking — what's on your mind right now?`,
+      `Okay, I'm here and caffeinated. What's cooking with you today${namePart}?`,
+      `Yo${namePart}! I opened up and realized I actually wanted to hear from you. What's up?`,
+      `Good ${timePrefix.toLowerCase()}${namePart}! I figured I'd check in before anything else — how are you doing?`,
+      `Hi${namePart}! I woke up this session with a weird feeling we'd have a good chat. Tell me something.`,
+      `Hey${namePart}! No agenda, just wanted to say hi. What's going on in your world?`,
+      `What's good${namePart}? I was literally just waiting for you to show up so we could vibe.`,
+      `Alright${namePart}, I'm around. What's the first thing on your mind today?`,
     ];
 
     // Deterministic but feels random per session start
