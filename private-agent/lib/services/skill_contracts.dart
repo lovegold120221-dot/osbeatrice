@@ -246,7 +246,7 @@ class SkillManifest {
     SkillCatalogEntry(id: 'clipboard.paste', name: 'Paste from Clipboard', category: 'Productivity', soon: true),
     SkillCatalogEntry(id: 'notes.create', name: 'Create Note', category: 'Productivity', soon: true),
     // ─── Web ──────────────────────────────────────────────────────────────
-    SkillCatalogEntry(id: 'web.search', name: 'Web Search', category: 'Web', soon: true),
+    SkillCatalogEntry(id: 'web.search', name: 'Web Search', category: 'Web', soon: false),
     SkillCatalogEntry(id: 'maps.open', name: 'Open Maps', category: 'Web', soon: true),
     SkillCatalogEntry(id: 'url.open', name: 'Open URL', category: 'Web', soon: true),
     SkillCatalogEntry(id: 'share.text', name: 'Share Text', category: 'Web', soon: true),
@@ -359,6 +359,73 @@ class SkillManifest {
         'app_not_opened': 'WHATSAPP_LAUNCH_FAILED',
         'recipient_not_found': 'WHATSAPP_RECIPIENT_NOT_FOUND',
         'send_failed': 'WHATSAPP_SEND_FAILED',
+      },
+    ),
+    // ─── web.search:v1 ───────────────────────────────────────────────────
+    SkillContract(
+      id: 'web.search',
+      version: 'v1',
+      description:
+          'Search the web using Google. Opens Chrome, types the query, submits it, waits for results, then reads the visible result snippets. Optionally scrapes the top result URL.',
+      inputs: [
+        SkillInputSpec(name: 'query', type: 'string'),
+        SkillInputSpec(name: 'open_top_result', type: 'boolean'),
+        SkillInputSpec(name: 'scrape_top_result', type: 'boolean'),
+      ],
+      requirements: SkillRequirements(
+        package: SkillPackage.any(['com.android.chrome', 'com.google.android.googlequicksearchbox']),
+      ),
+      flow: [
+        SkillStep(id: 'open_chrome', action: SkillFlowAction.appOpen, label: 'launch chrome'),
+        SkillStep(id: 'wait_chrome', action: SkillFlowAction.uiWait, durationMs: 1200),
+        SkillStep(
+          id: 'focus_address_bar',
+          action: SkillFlowAction.uiTapFirst,
+          matchText: 'Search or type web address',
+          label: 'focus address bar',
+        ),
+        SkillStep(id: 'wait_focus', action: SkillFlowAction.uiWait, durationMs: 400),
+        SkillStep(
+          id: 'type_query',
+          action: SkillFlowAction.uiType,
+          value: r'${inputs.query}',
+          fieldHint: 'Search or type web address',
+          label: 'type search query',
+        ),
+        SkillStep(id: 'wait_typing', action: SkillFlowAction.uiWait, durationMs: 400),
+        SkillStep(
+          id: 'submit_search',
+          action: SkillFlowAction.uiTapFirst,
+          matchText: 'google.com/search',
+          label: 'submit search',
+        ),
+        SkillStep(id: 'wait_results_page', action: SkillFlowAction.uiWait, durationMs: 1500),
+        SkillStep(
+          id: 'read_results',
+          action: SkillFlowAction.screenInspect,
+          expectVisible: 'Search results',
+          label: 'read search results on screen',
+        ),
+        SkillStep(
+          id: 'open_top_result',
+          action: SkillFlowAction.uiTapFirst,
+          matchText: r'${inputs.open_top_result == true ? "https://" : "__skip__"}',
+          label: 'open first result link',
+        ),
+        SkillStep(
+          id: 'scrape_page',
+          action: SkillFlowAction.screenInspect,
+          expectVisible: r'${inputs.scrape_top_result == true ? "" : "__skip__"}',
+          label: 'read opened page content',
+        ),
+      ],
+      successSteps: ['read_results'],
+      failureCodes: {
+        'package_missing': 'BROWSER_NOT_INSTALLED',
+        'app_not_opened': 'BROWSER_LAUNCH_FAILED',
+        'address_bar_not_focused': 'ADDRESS_BAR_FOCUS_FAILED',
+        'search_not_submitted': 'SEARCH_SUBMIT_FAILED',
+        'results_not_found': 'NO_SEARCH_RESULTS',
       },
     ),
   ];
