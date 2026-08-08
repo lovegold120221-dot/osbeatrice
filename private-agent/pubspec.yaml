@@ -1,0 +1,84 @@
+name: private_agent
+description: "AI agent for Android"
+publish_to: "none"
+version: 1.0.2+2021
+
+environment:
+  sdk: ^3.10.3
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # HTTP & API
+  http: ^1.4.0
+
+  # Voice
+  speech_to_text: ^7.0.0
+  flutter_tts: ^4.2.0
+
+  # App management
+  installed_apps: ^2.1.1
+  url_launcher: ^6.3.0
+  android_intent_plus: ^6.1.0
+
+  # Contacts
+  flutter_contacts: ^2.3.1
+
+  # Permissions
+  permission_handler: ^13.0.0
+
+  # Storage
+  shared_preferences: ^2.3.0
+  path_provider: ^2.1.0
+
+  # App metadata
+  package_info_plus: ^10.2.1
+
+  # Notifications
+  flutter_local_notifications: ^22.2.0
+
+  # System control
+  volume_controller: ^3.6.0
+  screen_brightness: ^2.1.11
+
+  # Shizuku (optional)
+  shizuku_api: ^1.2.2
+  share_plus: ^13.3.0
+  intl: ^0.20.3
+  flutter_overlay_window: ^0.5.0
+  flutter_markdown: ^0.7.7+1
+  webview_flutter: ^4.13.0
+  webview_flutter_android: ^4.13.0
+  firebase_core: ^4.4.0
+  firebase_auth: ^6.2.0
+  firebase_database: ^12.1.1
+  google_sign_in: ^7.2.0
+  google_fonts: ^8.2.0
+  lucide_icons_flutter: ^3.1.15
+
+  # On-device vision — YOLO26 object detection via ONNX Runtime
+  onnxruntime: ^1.4.1
+  image: ^4.5.0
+
+dependency_overrides:
+  flutter_overlay_window:
+    path: ./local_plugins/flutter_overlay_window
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.4
+
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: "assets/app-logo.png"
+  min_sdk_size: 21
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/
+    - assets/local_config/
