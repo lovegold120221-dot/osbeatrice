@@ -143,9 +143,8 @@ const CodeBlock = ({ className, children, ...props }: any) => {
 
 function SkillsPanel() {
   const [selectedSkill, setSelectedSkill] = useState<SkillDefinition | null>(null);
-  const [filter, setFilter] = useState<'all' | 'supported'>('supported');
+  const [filter, setFilter] = useState<'all' | 'supported'>('all');
   const [search, setSearch] = useState('');
-  const byCategory = getSkillsByCategory();
 
   const filteredSkills = skills.filter((skill) => {
     if (filter === 'supported' && !skill.supported) return false;
@@ -157,19 +156,41 @@ function SkillsPanel() {
     );
   });
 
+  // Flat vertical list sorted by category order, then name.
+  const categoryOrder: SkillCategory[] = ['agent', 'system', 'ui', 'app', 'communication', 'media', 'productivity', 'web'];
+  const sortedSkills = [...filteredSkills].sort((a, b) => {
+    const ai = categoryOrder.indexOf(a.category);
+    const bi = categoryOrder.indexOf(b.category);
+    if (ai !== bi) return ai - bi;
+    return a.name.localeCompare(b.name);
+  });
+
   return (
     <div className="space-y-4">
-      <div className="flex items-center space-x-2 bg-[#212121] p-1 rounded-xl border border-neutral-800">
-        {(['supported', 'all'] as const).map((f) => (
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-white">Available Skills</h2>
+          <p className="text-xs text-neutral-500 mt-0.5">
+            {sortedSkills.length} task-flow contracts ready for Beatrice to invoke
+          </p>
+        </div>
+      </div>
+
+      {/* Filter tabs */}
+      <div className="flex items-center space-x-2 bg-[#1a1a1a] p-1 rounded-xl border border-neutral-800">
+        {(['all', 'supported'] as const).map((f) => (
           <button
             key={f}
             onClick={() => setFilter(f)}
-            className={`flex-1 py-2 text-sm rounded-lg capitalize ${filter === f ? 'bg-white text-black font-medium' : 'text-neutral-400 hover:text-white'}`}
+            className={`flex-1 py-2 text-sm rounded-lg capitalize transition-colors ${filter === f ? 'bg-white text-black font-medium' : 'text-neutral-400 hover:text-white'}`}
           >
             {f === 'supported' ? 'Supported' : 'All Skills'}
           </button>
         ))}
       </div>
+
+      {/* Search */}
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500" size={16} />
         <input
@@ -177,82 +198,99 @@ function SkillsPanel() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search skills..."
-          className="w-full bg-[#212121] border border-neutral-800 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white focus:outline-none focus:border-neutral-600"
+          className="w-full bg-[#1a1a1a] border border-neutral-800 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder:text-neutral-600 focus:outline-none focus:border-neutral-600 transition-colors"
         />
       </div>
-      <div className="text-xs text-neutral-500 mb-2">{filteredSkills.length} skill(s) loaded</div>
-        <div className="space-y-5 max-h-[400px] overflow-y-auto pr-1 min-h-[200px]">
-        {(Object.keys(skillCategories) as SkillCategory[]).map((category) => {
-          const categorySkills = filteredSkills.filter((s) => s.category === category);
-          if (categorySkills.length === 0) return null;
-          const meta = skillCategories[category];
+
+      {/* Vertical skill list */}
+      <div className="space-y-2 max-h-[50vh] overflow-y-auto pr-1 pb-4">
+        {sortedSkills.map((skill) => {
+          const Icon = skill.icon;
+          const meta = skillCategories[skill.category];
+          const isSelected = selectedSkill?.id === skill.id;
           return (
-            <div key={category} className="space-y-2">
-              <div className="flex items-center space-x-2 sticky top-0 bg-black/95 backdrop-blur-sm py-2 z-10">
-                <span
-                  className="w-2 h-2 rounded-full"
-                  style={{ backgroundColor: meta.color }}
-                />
-                <span className="text-xs font-semibold uppercase tracking-wider text-neutral-400">
-                  {meta.label}
-                </span>
-                <span className="text-xs text-neutral-600">({categorySkills.length})</span>
-              </div>
-              <div className="space-y-2">
-                {categorySkills.map((skill) => {
-                  const Icon = skill.icon;
-                  return (
-                    <button
-                      key={skill.id}
-                      onClick={() => setSelectedSkill(selectedSkill?.id === skill.id ? null : skill)}
-                      className={`w-full text-left p-3 rounded-xl border transition-all ${selectedSkill?.id === skill.id ? 'bg-[#212121] border-neutral-600' : 'bg-[#141414] border-neutral-800 hover:border-neutral-700'}`}
-                    >
-                      <div className="flex items-start space-x-3">
-                        <div
-                          className="flex-shrink-0 w-9 h-9 rounded-lg flex items-center justify-center"
-                          style={{ backgroundColor: `${meta.color}15`, color: meta.color }}
-                        >
-                          <Icon size={18} />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between">
-                            <p className="text-sm font-medium text-white truncate">{skill.name}</p>
-                            {!skill.supported && (
-                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-neutral-800 text-neutral-500">
-                                soon
-                              </span>
-                            )}
-                            {skill.requiresConfirmation && skill.supported && (
-                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400">
-                                confirm
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-xs text-neutral-500 mt-1 line-clamp-2">{skill.description}</p>
-                          <p className="text-[10px] text-neutral-600 mt-1 font-mono">{skill.id}</p>
-                        </div>
+            <button
+              key={skill.id}
+              onClick={() => setSelectedSkill(isSelected ? null : skill)}
+              className={`w-full text-left rounded-xl border transition-all duration-200 group ${isSelected ? 'bg-[#212121] border-neutral-600' : 'bg-[#141414] border-neutral-800 hover:border-neutral-700 hover:bg-[#1a1a1a]'}`}
+            >
+              <div className="p-3.5">
+                <div className="flex items-start space-x-3.5">
+                  <div
+                    className="flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105"
+                    style={{ backgroundColor: `${meta.color}18`, color: meta.color }}
+                  >
+                    <Icon size={20} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-sm font-medium text-white truncate">{skill.name}</p>
+                      <div className="flex items-center space-x-1.5 shrink-0">
+                        {!skill.supported && (
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-neutral-800 text-neutral-500 border border-neutral-700/50">
+                            soon
+                          </span>
+                        )}
+                        {skill.requiresConfirmation && skill.supported && (
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/20">
+                            confirm
+                          </span>
+                        )}
+                        <span
+                          className="w-1.5 h-1.5 rounded-full"
+                          style={{ backgroundColor: skill.supported ? '#10b981' : meta.color }}
+                        />
                       </div>
-                      {selectedSkill?.id === skill.id && skill.parameters.length > 0 && (
-                        <div className="mt-3 pt-3 border-t border-neutral-800/50 space-y-2">
-                          <p className="text-xs font-medium text-neutral-400">Parameters</p>
-                          {skill.parameters.map((param) => (
-                            <div key={param.name} className="flex items-start justify-between text-xs">
+                    </div>
+                    <p className="text-xs text-neutral-500 mt-1 line-clamp-2 leading-relaxed">
+                      {skill.description}
+                    </p>
+                    <div className="flex items-center justify-between mt-2.5">
+                      <span className="text-[10px] font-mono text-neutral-600">{skill.id}</span>
+                      <span
+                        className="text-[10px] px-1.5 py-0.5 rounded-md"
+                        style={{ backgroundColor: `${meta.color}12`, color: meta.color }}
+                      >
+                        {meta.label}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Expanded details */}
+                {isSelected && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="mt-3 pt-3 border-t border-neutral-800/60"
+                  >
+                    {skill.parameters.length > 0 && (
+                      <div className="space-y-2 mb-3">
+                        <p className="text-xs font-medium text-neutral-400">Parameters</p>
+                        {skill.parameters.map((param) => (
+                          <div key={param.name} className="flex items-start justify-between text-xs gap-3">
+                            <div className="flex items-center space-x-1.5">
                               <span className="text-neutral-300 font-mono">{param.name}</span>
-                              <span className="text-neutral-500 text-right max-w-[60%]">{param.description}</span>
+                              {param.required && <span className="text-red-400">*</span>}
                             </div>
-                          ))}
-                        </div>
-                      )}
-                    </button>
-                  );
-                })}
+                            <span className="text-neutral-500 text-right max-w-[60%]">{param.description}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <p className="text-xs text-neutral-500 leading-relaxed">
+                      {skill.description}
+                    </p>
+                  </motion.div>
+                )}
               </div>
-            </div>
+            </button>
           );
         })}
-        {filteredSkills.length === 0 && (
-          <div className="text-center py-8">
-            <Cpu className="mx-auto text-neutral-700 mb-2" size={32} />
+        {sortedSkills.length === 0 && (
+          <div className="text-center py-10">
+            <Cpu className="mx-auto text-neutral-700 mb-3" size={36} />
             <p className="text-sm text-neutral-500">No skills match your search.</p>
           </div>
         )}
@@ -2662,6 +2700,7 @@ export default function App() {
                       </div>
                     </div>
                   )}
+                  {activeModal === 'skills' && <SkillsPanel />}
                 </div>
               </motion.div>
             </motion.div>
