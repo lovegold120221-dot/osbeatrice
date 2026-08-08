@@ -735,6 +735,33 @@ export default function App() {
     }
   };
 
+  const getDynamicGreeting = () => {
+    const hour = new Date().getHours();
+    let timePrefix = '';
+    if (hour < 12) timePrefix = 'Morning';
+    else if (hour < 18) timePrefix = 'Afternoon';
+    else timePrefix = 'Evening';
+
+    const userName = user?.displayName?.split(' ')[0] || user?.email?.split('@')[0];
+    const namePart = userName ? `, ${userName}` : '';
+
+    const greetings = [
+      `Hey${namePart}! What's up?`,
+      `Hey${namePart}, how's it going?`,
+      `What's good${namePart}?`,
+      `Yo${namePart}! What's happening?`,
+      `Hi${namePart}! What's on your mind?`,
+      `Hey${namePart}! I'm around if you need anything.`,
+      `Good ${timePrefix.toLowerCase()}${namePart}! What's up?`,
+      `Good ${timePrefix.toLowerCase()}${namePart}! How are you doing?`,
+    ];
+
+    // Deterministic but feels random per session start
+    const daySeed = Math.floor(Date.now() / (1000 * 60 * 60 * 24));
+    const index = (daySeed + (userName?.length || 0)) % greetings.length;
+    return greetings[index];
+  };
+
   const handleLiveClose = (event: { code?: number; reason?: string; wasClean?: boolean }, isVoice: boolean) => {
     const closeEvent = { code: event?.code, reason: event?.reason, wasClean: event?.wasClean };
     console.error('[VOICE] live.close', closeEvent);
@@ -821,6 +848,10 @@ export default function App() {
           console.log("Chat live session opened");
           setIsLiveActive(true);
           startLevelMonitor();
+          // Beatrice speaks first in text live mode too
+          sessionPromise.then((session) => {
+            session.sendClientContent({ turns: getDynamicGreeting(), turnComplete: true });
+          });
         },
         (message) => {
           handleLiveToolCalls(message);
@@ -908,9 +939,9 @@ export default function App() {
           console.log("Live session opened");
           setIsLiveActive(true);
 
-          // Beatrice speaks first — send an initial greeting
+          // Beatrice speaks first — send a dynamic greeting
           sessionPromise.then((session) => {
-            session.sendClientContent({ turns: "Hey! What's up?", turnComplete: true });
+            session.sendClientContent({ turns: getDynamicGreeting(), turnComplete: true });
           });
 
           const source = audioContextRef.current!.createMediaStreamSource(stream);
