@@ -32,6 +32,8 @@ import {
   Wand2,
   PhoneOff,
   AudioWaveform,
+  MessageSquare,
+  Video,
   PenTool,
   Code,
   Trash2,
@@ -607,6 +609,8 @@ export default function App() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const _visionIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const _lastVisionDescriptionRef = useRef<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -1701,11 +1705,64 @@ export default function App() {
     }
   };
 
+  // Open the camera and continuously describe the scene for the voice session.
+  const startCameraWithVision = async () => {
+    setIsCameraOpen(true);
+    setIsMenuOpen(false);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment' },
+      });
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+      // Wait a moment for the video to settle, then capture frames periodically.
+      setTimeout(() => {
+        _visionIntervalRef.current = setInterval(async () => {
+          const description = await _captureAndDescribeFrame();
+          if (description) {
+            _lastVisionDescriptionRef.current = description;
+            console.log('[VISION] frame description:', description.slice(0, 120));
+          }
+        }, 3000);
+      }, 1500);
+    } catch (err) {
+      console.error("Error accessing camera for vision:", err);
+      setIsCameraOpen(false);
+    }
+  };
+
+  const _captureAndDescribeFrame = async (): Promise<string | null> => {
+    if (!videoRef.current || !canvasRef.current) return null;
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (video.videoWidth === 0 || video.videoHeight === 0) return null;
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const dataUrl = canvas.toDataURL('image/png');
+    const base64 = dataUrl.split(',')[1];
+    const mimeType = 'image/png';
+    try {
+      const response = await analyzeImage("Describe what you see in this image in one short sentence.", base64, mimeType);
+      return response || null;
+    } catch (e) {
+      console.error('Vision frame analysis failed:', e);
+      return null;
+    }
+  };
+
   const stopCamera = () => {
     if (videoRef.current && videoRef.current.srcObject) {
       const stream = videoRef.current.srcObject as MediaStream;
       stream.getTracks().forEach(track => track.stop());
       videoRef.current.srcObject = null;
+    }
+    if (_visionIntervalRef.current) {
+      clearInterval(_visionIntervalRef.current);
+      _visionIntervalRef.current = null;
     }
     setIsCameraOpen(false);
   };
@@ -2386,12 +2443,39 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="p-10 flex justify-center pb-16 relative z-10">
-                <button 
+              <div className="p-10 flex items-center justify-center gap-8 pb-16 relative z-10">
+                {/* Chat / text input redirect */}
+                <button
+                  onClick={() => {
+                    stopLiveSession();
+                    if (view === 'home') setView('chat');
+                    setTimeout(() => textareaRef.current?.focus(), 100);
+                  }}
+                  className="w-14 h-14 rounded-full bg-[#1a1a1a] border border-neutral-800 flex items-center justify-center text-white hover:bg-[#2a2a2a] transition-all hover:scale-105"
+                  aria-label="Open text chat"
+                >
+                  <MessageSquare size={22} />
+                </button>
+
+                {/* Mic / end voice session */}
+                <button
                   onClick={stopLiveSession}
                   className="w-16 h-16 bg-red-500 hover:bg-red-600 rounded-full flex items-center justify-center text-white shadow-[0_0_30px_rgba(239,68,68,0.5)] transition-all hover:scale-105"
+                  aria-label="End voice session"
                 >
-                  <PhoneOff size={28} />
+                  <Mic size={28} />
+                </button>
+
+                {/* Camera / real-time vision */}
+                <button
+                  onClick={() => {
+                    stopLiveSession();
+                    startCameraWithVision();
+                  }}
+                  className="w-14 h-14 rounded-full bg-[#1a1a1a] border border-neutral-800 flex items-center justify-center text-white hover:bg-[#2a2a2a] transition-all hover:scale-105"
+                  aria-label="Open camera with vision"
+                >
+                  <Video size={22} />
                 </button>
               </div>
             </motion.div>
