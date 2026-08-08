@@ -38,8 +38,18 @@ import {
   Trash2,
   Power,
   RotateCw,
+  BellOff,
+  PhoneOff,
+  Square,
+  RefreshCw,
+  BatteryMedium,
+  HardDrive,
+  Grid,
+  Lock,
   type LucideIcon,
-} from 'lucide-react';
+
+  Users, User, UserPlus, Send, PhoneIncoming, History, Monitor, Speaker,
+  } from 'lucide-react';
 
 /**
  * Skill Registry — Task Flow Contracts
@@ -1019,7 +1029,220 @@ export const skills: SkillDefinition[] = [
 
 export function getSkillsByCategory(): Record<SkillCategory, SkillDefinition[]> {
   return skills.reduce((acc, skill) => {
-    acc[skill.category] = acc[skill.category] || [];
+    acc[skill.category] = acc[skill.category] || [
+    // ─── Contacts Management ─────────────────────────────────────────────────────
+    {
+    id: 'contacts.get.list',
+    name: 'List Contacts',
+    description: 'Retrieve a list of all contacts on the device.',
+    category: 'agent',
+    icon: Users,
+    parameters: [],
+    supported: true,
+    },
+    {
+    id: 'contacts.get.info',
+    name: 'Get Contact Info',
+    description: 'Fetch details (name, number, email) for a specific contact.',
+    category: 'agent',
+    icon: User,
+    parameters: [
+      { name: 'contactName', type: 'string', description: 'Name of the contact to look up.', required: true },
+     ],
+    supported: true,
+    },
+    {
+    id: 'contacts.add.new',
+    name: 'Add New Contact',
+    description: 'Create a new entry in the device contacts with name and phone number.',
+    category: 'agent',
+    icon: UserPlus,
+    parameters: [
+      { name: 'name', type: 'string', description: 'Contact full name.', required: true },
+      { name: 'phoneNumber', type: 'string', description: 'Primary phone number.', required: true },
+     ],
+    supported: true,
+    },
+    {
+    id: 'contacts.search',
+    name: 'Search Contacts',
+    description: 'Search the address book by name or phone number.',
+    category: 'agent',
+    icon: Search,
+    parameters: [
+      { name: 'query', type: 'string', description: 'Search term to find the contact.', required: true },
+     ],
+    supported: true,
+    },
+    {
+    id: 'contacts.delete',
+    name: 'Delete Contact',
+    description: 'Remove a contact from the address book permanently.',
+    category: 'agent',
+    icon: Trash2,
+    parameters: [
+      { name: 'contactName', type: 'string', description: 'Name of the contact to delete.', required: true },
+     ],
+    supported: true,
+    requiresConfirmation: true,
+    dangerous: true,
+    },
+    // ─── Standard SMS Management ─────────────────────────────────────────────────
+    {
+    id: 'sms.send',
+    name: 'Send SMS',
+    description: 'Send a standard text message (SMS) to a specific phone number.',
+    category: 'communication',
+    icon: Send,
+    parameters: [
+      { name: 'phoneNumber', type: 'string', description: 'Recipient phone number.', required: true },
+      { name: 'message', type: 'string', description: 'Text content of the SMS.', required: true },
+     ],
+    supported: true,
+    },
+    {
+    id: 'sms.read',
+    name: 'Read Latest SMS',
+    description: 'Retrieve and read the content of the most recent incoming SMS.',
+    category: 'communication',
+    icon: Mail,
+    parameters: [],
+    supported: true,
+    },
+    {
+    id: 'sms.search',
+    name: 'Search SMS',
+    description: 'Search through SMS messages by keyword or sender.',
+    category: 'communication',
+    icon: Search,
+    parameters: [
+      { name: 'keyword', type: 'string', description: 'Keyword or phrase to search for.', required: true },
+     ],
+    supported: true,
+    },
+    {
+    id: 'sms.delete',
+    name: 'Delete SMS',
+    description: 'Delete a specific SMS message or conversation thread.',
+    category: 'communication',
+    icon: Trash2,
+    parameters: [
+      { name: 'conversationId', type: 'string', description: 'ID of the conversation to delete.', required: false },
+     ],
+    supported: true,
+    },
+    // ─── Call Management ─────────────────────────────────────────────────────
+    {
+    id: 'phone.call.make',
+    name: 'Make Phone Call',
+    description: 'Dial a phone number directly using the device dialer.',
+    category: 'communication',
+    icon: Phone,
+    parameters: [
+      { name: 'phoneNumber', type: 'string', description: 'Phone number to dial.', required: true },
+     ],
+    supported: true,
+    },
+    {
+    id: 'phone.call.hangup',
+    name: 'Hang Up Call',
+    description: 'End an active phone call immediately.',
+    category: 'communication',
+    icon: PhoneOff,
+    parameters: [],
+    supported: true,
+    },
+    {
+    id: 'phone.call.accept',
+    name: 'Accept Incoming Call',
+    description: 'Answer an incoming call automatically.',
+    category: 'communication',
+    icon: PhoneIncoming,
+    parameters: [],
+    supported: true,
+    },
+    {
+    id: 'phone.call.decline',
+    name: 'Decline Incoming Call',
+    description: 'Reject an incoming call silently.',
+    category: 'communication',
+    icon: PhoneOff,
+    parameters: [],
+    supported: true,
+    },
+    {
+    id: 'phone.call.log',
+    name: 'View Call Log',
+    description: 'Retrieve recent call history including missed, incoming, and outgoing calls.',
+    category: 'communication',
+    icon: History,
+    parameters: [],
+    supported: true,
+    },
+    // ─── Device Info & Utilities ───────────────────────────────────────────────
+    {
+    id: 'device.info.status',
+    name: 'Get Device Status',
+    description: 'Check and report overall device health including battery level, storage, and network.',
+    category: 'system',
+    icon: Smartphone,
+    parameters: [],
+    supported: true,
+    },
+    {
+    id: 'settings.theme.toggle',
+    name: 'Toggle Dark/Light Mode',
+    description: 'Switch the system-wide display theme between dark and light mode.',
+    category: 'system',
+    icon: Monitor,
+    parameters: [
+      { name: 'mode', type: 'string', description: 'Target theme: dark or light.', required: true },
+     ],
+    supported: true,
+    },
+    {
+    id: 'media.volume.adjust',
+    name: 'Adjust Volume',
+    description: 'Set the system media volume to a specific percentage.',
+    category: 'system',
+    icon: Speaker,
+    parameters: [
+      { name: 'level', type: 'number', description: 'Volume level from 0 to 100.', required: true },
+     ],
+    supported: true,
+    },
+    {
+    id: 'clipboard.copy',
+    name: 'Copy to Clipboard',
+    description: 'Copy specified text into the device clipboard for pasting elsewhere.',
+    category: 'ui',
+    icon: Copy,
+    parameters: [
+      { name: 'text', type: 'string', description: 'Text content to copy.', required: true },
+     ],
+    supported: true,
+    },
+    {
+    id: 'clipboard.paste',
+    name: 'Paste from Clipboard',
+    description: 'Retrieve and read the current text content stored in the clipboard.',
+    category: 'ui',
+    icon: Clipboard,
+    parameters: [],
+    supported: true,
+    },
+    {
+    id: 'screen.recording.start',
+    name: 'Start Screen Recording',
+    description: 'Begin recording the device screen, including UI interactions and audio.',
+    category: 'ui',
+    icon: Video,
+    parameters: [
+      { name: 'duration', type: 'number', description: 'Maximum recording duration in seconds.', required: false },
+     ],
+    supported: true,
+    },
+];
     acc[skill.category].push(skill);
     return acc;
   }, {} as Record<SkillCategory, SkillDefinition[]>);
