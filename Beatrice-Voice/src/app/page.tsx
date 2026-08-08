@@ -696,39 +696,55 @@ export default function App() {
       );
       if (!snapshot.exists()) return '';
 
-      const recentChats: string[] = [];
-      let count = 0;
-      // Get last 3 chats (most recent)
       const allChats: { key: string; val: any }[] = [];
       snapshot.forEach((child) => { allChats.push({ key: child.key!, val: child.val() }); return false; });
       allChats.reverse();
 
-      for (const chat of allChats) {
-        if (count >= 3) break;
+      // Deep memory summary: build a richer picture across many recent chats.
+      const recentChats: string[] = [];
+      const topicHints: string[] = [];
+      let count = 0;
+
+      for (const chat of allChats.slice(0, 10)) {
         const msgSnapshot = await get(
           query(
             dbRef(database, `users/${firebaseOwnerUid}/conversations/${chat.key}/messages`),
             orderByChild('created_at')
           )
         );
-        if (msgSnapshot.exists()) {
-          const messages: string[] = [];
-          msgSnapshot.forEach((msgChild) => {
-            const m = msgChild.val();
+        if (!msgSnapshot.exists()) continue;
+
+        const messages: string[] = [];
+        msgSnapshot.forEach((msgChild) => {
+          const m = msgChild.val();
+          if (m.text) {
             messages.push(`${m.role === 'user' ? 'User' : 'Beatrice'}: ${m.text}`);
-          });
-          if (messages.length > 0) {
-            recentChats.push(`[Previous conversation - ${chat.val.title || 'Chat'}]\n${messages.slice(-8).join('\n')}`);
-            count++;
           }
+        });
+
+        if (messages.length === 0) continue;
+
+        const title = chat.val.title || 'Chat';
+        const firstUserMsg = messages.find(m => m.startsWith('User:'));
+        const firstUserText = firstUserMsg?.replace('User: ', '') || '';
+        if (firstUserText.length > 5) {
+          topicHints.push(firstUserText.slice(0, 60));
+        }
+
+        if (count < 3) {
+          recentChats.push(`[Previous conversation - ${title}]\n${messages.slice(-12).join('\n')}`);
+          count++;
         }
       }
-      // Retain a useful cross-session memory window without consuming the
-      // entire Live context with historical transcripts.
+
       const memory = recentChats.join('\n\n').slice(-12000);
-      return memory
-        ? `\n\nHere is context from your past conversations with this user (for memory):\n${memory}`
+      const topicSummary = topicHints.length > 0
+        ? `Recent things we've talked about: ${topicHints.slice(0, 6).join('; ')}.`
         : '';
+
+      if (!memory && !topicSummary) return '';
+
+      return `\n\n[Beatrice memory for this user — reference naturally, don't quote this block verbatim]\n${[topicSummary, memory].filter(Boolean).join('\n\n')}`;
     } catch (err) {
       console.error('Failed to fetch conversation memory', err);
       return '';
@@ -748,6 +764,7 @@ export default function App() {
     // These intros feel like Beatrice is starting the conversation herself,
     // not answering an invisible prompt. They are open-ended, situational,
     // and warm — as if she just noticed the user and decided to speak.
+    // Some variants lightly nudge memory topics without sounding rehearsed.
     const greetings = [
       `Hey${namePart}! I was just thinking — what's on your mind right now?`,
       `Okay, I'm here and caffeinated. What's cooking with you today${namePart}?`,
@@ -757,6 +774,8 @@ export default function App() {
       `Hey${namePart}! No agenda, just wanted to say hi. What's going on in your world?`,
       `What's good${namePart}? I was literally just waiting for you to show up so we could vibe.`,
       `Alright${namePart}, I'm around. What's the first thing on your mind today?`,
+      `Hey${namePart}! I was just remembering our last chat. Anything new since then?`,
+      `Back again${namePart}. What are we continuing today?`,
     ];
 
     // Deterministic but feels random per session start
