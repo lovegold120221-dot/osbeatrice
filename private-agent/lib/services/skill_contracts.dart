@@ -19,6 +19,8 @@ enum SkillFlowAction {
   uiTapFirst,
   /// Inspect the screen for package / visible text / input state.
   screenInspect,
+  /// Generate and register a new skill contract at runtime.
+  generateSkill,
 }
 
 class SkillStep {
@@ -272,7 +274,7 @@ class SkillManifest {
         'skills': catalog.map((entry) => entry.toJson()).toList(),
       };
 
-  static const List<SkillContract> contracts = [
+  static const List<SkillContract> _baseContracts = [
     // ─── whatsapp.open:v1 ────────────────────────────────────────────────
     SkillContract(
       id: 'whatsapp.open',
@@ -430,8 +432,22 @@ class SkillManifest {
     ),
   ];
 
-  /// Resolves a contract by qualified id (`whatsapp.send_message:v1`) or bare
-  /// id (`whatsapp.send_message`).
+  /// Runtime registry for generated skills. Base contracts are immutable;
+  /// generated contracts are added here and become immediately executable.
+  static final List<SkillContract> _generatedContracts = [];
+
+  static void register(SkillContract contract) {
+    if (find(contract.qualifiedId) == null) {
+      _generatedContracts.add(contract);
+    }
+  }
+
+  static List<SkillContract> get contracts => [
+        ..._baseContracts,
+        ..._generatedContracts,
+      ];
+
+  /// Resolves a contract by qualified id or bare id.
   static SkillContract? find(String qualifiedIdOrId) {
     final q = qualifiedIdOrId.trim();
     for (final contract in contracts) {

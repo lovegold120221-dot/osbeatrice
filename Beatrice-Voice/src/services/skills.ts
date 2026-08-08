@@ -27,6 +27,7 @@ import {
   AlarmClock,
   Calculator,
   Search,
+  Wand2,
   Globe,
   Wifi,
   Bluetooth,
@@ -673,6 +674,44 @@ export const skills: SkillDefinition[] = [
     supported: false,
   },
 
+
+  {
+    id: 'skill.generate',
+    name: 'Generate Skill',
+    description: 'Create a new device skill flow contract when the user asks for an action that is not currently supported. The orchestrator describes the desired skill, and the private-agent registers it.',
+    category: 'agent',
+    icon: Wand2,
+    parameters: [
+      { name: 'skill_name', type: 'string', description: 'Short snake_case id for the new skill, e.g. settings.wifi.toggle.', required: true },
+      { name: 'category', type: 'enum', description: 'Skill category.', required: true, enum: ['agent', 'system', 'ui', 'app', 'communication', 'media', 'productivity', 'web'] },
+      { name: 'description', type: 'string', description: 'What the skill does in plain language.', required: true },
+      { name: 'inputs', type: 'string', description: 'JSON array of {name, type, required, description} input specs.', required: false },
+      { name: 'flow', type: 'string', description: 'JSON array of skill steps using actions: appOpen, uiWait, uiTapText, uiType, uiTapFirst, screenInspect.', required: true },
+    ],
+    supported: true,
+    contract: {
+      id: 'skill.generate',
+      version: 1,
+      confirmation: 'voice',
+      requirements: { agentState: 'ready', accessibility: true },
+      inputs: [
+        { name: 'skill_name', type: 'string', description: 'Short snake_case id for the new skill.', required: true },
+        { name: 'category', type: 'enum', description: 'Skill category.', required: true, enum: ['agent', 'system', 'ui', 'app', 'communication', 'media', 'productivity', 'web'] },
+        { name: 'description', type: 'string', description: 'What the skill does.', required: true },
+        { name: 'inputs', type: 'string', description: 'JSON array of input specs.', required: false },
+        { name: 'flow', type: 'string', description: 'JSON array of skill steps.', required: true },
+      ],
+      flow: [
+        { id: 'validate', action: 'screenInspect', expect: { agent_ready: true }, target: { label: 'validate skill request' } },
+        { id: 'register', action: 'screenInspect', expect: { register_skill: '\${inputs.skill_name}' }, target: { label: 'register new skill contract' } },
+      ],
+      success: { when: ['validate == passed', 'register == passed'] },
+      failure: {
+        AGENT_NOT_READY: 'Agent is not ready to register skills.',
+        SKILL_REGISTER_FAILED: 'Failed to register the generated skill contract.',
+      },
+    },
+  },
   // ─── Web / Search ──────────────────────────────────────────────────────
   {
     id: 'web.search',

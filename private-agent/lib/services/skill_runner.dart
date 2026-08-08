@@ -1,9 +1,9 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:developer' as developer;
 
 import 'package:installed_apps/app_info.dart';
 
-import '../models/agent_identity.dart';
 import '../models/skill_invocation.dart';
 import 'agent_identity_service.dart';
 import 'ai_service.dart';
@@ -229,7 +229,87 @@ class SkillRunner {
         await Future<void>.delayed(
             Duration(milliseconds: step.durationMs ?? 300));
         return true;
+      case SkillFlowAction.generateSkill:
+        return await _generateSkill(inputs);
     }
+  }
+
+  /// Generate a new skill contract from the invocation inputs, validate it,
+  /// and register it in the live SkillManifest cache so it can be invoked
+  /// immediately on the same device.
+  Future<bool> _generateSkill(Map<String, dynamic> inputs) async {
+    try {
+      final name = inputs['skill_name']?.toString().trim() ?? '';
+      final category = inputs['category']?.toString().trim() ?? 'app';
+      final description = inputs['description']?.toString().trim() ?? '';
+      if (name.isEmpty || description.isEmpty || category.isEmpty) {
+        developer.log('Skill generation rejected: missing name/category/description', name: 'BeatriceOS');
+        return false;
+      }
+
+      final rawInputs = inputs['inputs']?.toString() ?? '[]';
+      final rawFlow = inputs['flow']?.toString() ?? '[]';
+      final inputList = _parseSkillInputs(rawInputs);
+      final flowList = _parseSkillFlow(rawFlow);
+
+      final generated = SkillContract(
+        id: name,
+        version: 'v1',
+        description: description,
+        inputs: inputList,
+        requirements: const SkillRequirements(),
+        flow: flowList,
+        successSteps: flowList.map((s) => s.id).toList(),
+        failureCodes: const {
+          'package_missing': 'PACKAGE_NOT_INSTALLED',
+          'app_not_opened': 'APP_LAUNCH_FAILED',
+        },
+      );
+
+      SkillManifest.register(generated);
+      developer.log('Generated skill registered: ${generated.qualifiedId}', name: 'BeatriceOS');
+      return true;
+    } catch (e) {
+      developer.log('Skill generation failed: $e', name: 'BeatriceOS');
+      return false;
+    }
+  }
+
+  List<SkillInputSpec> _parseSkillInputs(String raw) {
+    final decoded = jsonDecode(raw);
+    if (decoded is! List) return [];
+    return decoded.whereType<Map>().map((m) {
+      final map = Map<String, dynamic>.from(m);
+      return SkillInputSpec(
+        name: map['name']?.toString() ?? 'input',
+        type: map['type']?.toString() ?? 'string',
+        required: map['required'] == true,
+      );
+    }).toList();
+  }
+
+  List<SkillStep> _parseSkillFlow(String raw) {
+    final decoded = jsonDecode(raw);
+    if (decoded is! List) return [];
+    return decoded.whereType<Map>().map((m) {
+      final map = Map<String, dynamic>.from(m);
+      return SkillStep(
+        id: map['id']?.toString() ?? 'step',
+        action: SkillFlowAction.values.firstWhere(
+          (a) => a.name == map['action']?.toString(),
+          orElse: () => SkillFlowAction.uiWait,
+        ),
+        label: map['label']?.toString(),
+        durationMs: map['duration_ms'] is int ? map['duration_ms'] as int : null,
+        tapText: map['tap_text']?.toString(),
+        matchText: map['match_text']?.toString(),
+        value: map['value']?.toString(),
+        fieldHint: map['field_hint']?.toString(),
+        expectedPackage: map['expected_package']?.toString(),
+        expectVisible: map['expect_visible']?.toString(),
+        expectInputEmpty: map['expect_input_empty'] == true,
+      );
+    }).toList();
   }
 
   /// Launch the app required by the contract (package manifest → installed
