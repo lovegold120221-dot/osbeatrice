@@ -288,6 +288,7 @@ export function connectLive(
   responseStyle = '',
   taskExecutorPermission: TaskExecutorPermission = 'allow-full',
   instrumentation: LiveInstrumentationCallbacks = {},
+  visionContext = '',
 ) {
   if (!ai) throw new Error("API key not configured");
 

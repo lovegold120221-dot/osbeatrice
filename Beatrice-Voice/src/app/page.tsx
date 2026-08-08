@@ -966,6 +966,8 @@ export default function App() {
         sessionUserContext,
         responseStyle,
         taskExecutorPermission,
+        {},
+        _lastVisionDescriptionRef.current || '',
       );
 
       liveSessionRef.current = await sessionPromise;
@@ -1134,6 +1136,8 @@ export default function App() {
         userContext,
         responseStyle,
         taskExecutorPermission,
+        {},
+        _lastVisionDescriptionRef.current || '',
       );
 
       liveSessionRef.current = await sessionPromise;
