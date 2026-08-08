@@ -675,6 +675,10 @@ export default function App() {
   const audioQueueRef = useRef<Int16Array[]>([]);
   const isPlayingRef = useRef(false);
   const nextAudioStartRef = useRef(0);
+  // Sub-sample position carried between resampled chunks so long sessions
+  // (10+ min of continuous talk) keep the playback timeline exactly in sync
+  // with real time instead of drifting into distortion.
+  const resamplePhaseRef = useRef(0);
   const scheduledAudioSourcesRef = useRef<AudioBufferSourceNode[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
   const processorRef = useRef<ScriptProcessorNode | null>(null);
@@ -763,22 +767,31 @@ export default function App() {
     }
   };
 
-  // Audio resampling utility - resample from 24kHz to target sample rate
+  // Audio resampling utility - resample from 24kHz to target sample rate.
+  // Uses a persistent phase accumulator so the total output duration across
+  // many chunks exactly matches the input duration (no per-chunk rounding
+  // loss, which used to drift the playback timeline after ~10 min).
   const resampleAudio = (input: Float32Array, fromRate: number, toRate: number): Float32Array => {
     if (fromRate === toRate) return input;
     const ratio = fromRate / toRate;
-    const outputLength = Math.floor(input.length / ratio);
+    const outputLength = Math.floor((input.length + resamplePhaseRef.current) / ratio);
     const output = new Float32Array(outputLength);
+    // Recompose the source samples the output needs, compensating for the
+    // carry-in phase, so a fractional chunk boundary flows into the next chunk.
     for (let i = 0; i < outputLength; i++) {
-      const srcIndex = i * ratio;
-      const srcIndexInt = Math.floor(srcIndex);
-      const frac = srcIndex - srcIndexInt;
-      if (srcIndexInt + 1 < input.length) {
-        output[i] = input[srcIndexInt] * (1 - frac) + input[srcIndexInt + 1] * frac;
+      const fullSrcIndex = i * ratio - resamplePhaseRef.current;
+      const srcIndexInt = Math.floor(fullSrcIndex);
+      const frac = fullSrcIndex - srcIndexInt;
+      if (srcIndexInt < -1 || srcIndexInt >= input.length) {
+        output[i] = 0;
       } else {
-        output[i] = input[srcIndexInt];
+        const a = srcIndexInt >= 0 ? input[srcIndexInt] : 0;
+        const b = srcIndexInt + 1 < input.length ? input[srcIndexInt + 1] : 0;
+        output[i] = a * (1 - frac) + b * frac;
       }
     }
+    // Keep the leftover fractional position for the next chunk.
+    resamplePhaseRef.current = input.length - outputLength * ratio;
     return output;
   };
 
@@ -1212,6 +1225,7 @@ export default function App() {
     scheduledAudioSourcesRef.current = [];
     stopBgKeepalive();
     nextAudioStartRef.current = 0;
+    resamplePhaseRef.current = 0;
     outputAnalyserRef.current = null;
     isPlayingRef.current = false;
     setIsSpeaking(false);
@@ -1255,6 +1269,19 @@ export default function App() {
       (total, chunk) => total + chunk.length / 24000,
       0,
     );
+    // Long-session guard: if we ever fall >1.5 s behind (tab throttling,
+    // GC spikes, network jitter), drop the stale tail of the queue so the
+    // timeline snaps back to real time instead of playing robotic catch-up.
+    if (queuedSeconds > 1.5) {
+      let excess = queuedSeconds - 0.5;
+      while (audioQueueRef.current.length > 1 && excess > 0) {
+        const first = audioQueueRef.current[0];
+        const firstSeconds = first.length / 24000;
+        if (firstSeconds > excess) break;
+        audioQueueRef.current.shift();
+        excess -= firstSeconds;
+      }
+    }
     // Buffer a short lead before the first sample, then stay ahead of playback.
     if (!isPlayingRef.current && queuedSeconds < 0.06) return;
 
