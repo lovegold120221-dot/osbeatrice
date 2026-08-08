@@ -257,7 +257,7 @@ export const skills: SkillDefinition[] = [
     parameters: [
       { name: 'enabled', type: 'boolean', description: 'Target Wi-Fi state.', required: true },
     ],
-    supported: false,
+    supported: true,
   },
   {
     id: 'system.bluetooth.toggle',
@@ -268,7 +268,7 @@ export const skills: SkillDefinition[] = [
     parameters: [
       { name: 'enabled', type: 'boolean', description: 'Target Bluetooth state.', required: true },
     ],
-    supported: false,
+    supported: true,
   },
   {
     id: 'system.flashlight.toggle',
@@ -279,7 +279,7 @@ export const skills: SkillDefinition[] = [
     parameters: [
       { name: 'enabled', type: 'boolean', description: 'Target flashlight state.', required: true },
     ],
-    supported: false,
+    supported: true,
   },
   {
     id: 'system.power.restart',
@@ -288,7 +288,7 @@ export const skills: SkillDefinition[] = [
     category: 'system',
     icon: RotateCw,
     parameters: [],
-    supported: false,
+    supported: true,
     requiresConfirmation: false,
     dangerous: true,
   },
@@ -299,7 +299,7 @@ export const skills: SkillDefinition[] = [
     category: 'system',
     icon: Power,
     parameters: [],
-    supported: false,
+    supported: true,
     requiresConfirmation: false,
     dangerous: true,
   },
@@ -419,7 +419,7 @@ export const skills: SkillDefinition[] = [
       { name: 'appName', type: 'string', description: 'Human-readable app name.', required: true },
       { name: 'packageName', type: 'string', description: 'Android package name, if known.', required: false },
     ],
-    supported: false,
+    supported: true,
   },
   {
     id: 'app.list',
@@ -430,7 +430,7 @@ export const skills: SkillDefinition[] = [
     parameters: [
       { name: 'query', type: 'string', description: 'Optional filter by app name.', required: false },
     ],
-    supported: false,
+    supported: true,
   },
   {
     id: 'app.installed.check',
@@ -455,7 +455,7 @@ export const skills: SkillDefinition[] = [
       { name: 'contactName', type: 'string', description: 'Contact name to search.', required: false },
       { name: 'phoneNumber', type: 'string', description: 'Phone number to dial.', required: false },
     ],
-    supported: false,
+    supported: true,
     requiresConfirmation: false,
   },
   {
@@ -469,7 +469,7 @@ export const skills: SkillDefinition[] = [
       { name: 'phoneNumber', type: 'string', description: 'Phone number.', required: false },
       { name: 'message', type: 'string', description: 'Message text.', required: true },
     ],
-    supported: false,
+    supported: true,
     requiresConfirmation: false,
   },
   {
@@ -483,7 +483,7 @@ export const skills: SkillDefinition[] = [
       { name: 'subject', type: 'string', description: 'Email subject.', required: false },
       { name: 'body', type: 'string', description: 'Email body.', required: false },
     ],
-    supported: false,
+    supported: true,
     requiresConfirmation: false,
   },
   {
@@ -520,7 +520,7 @@ export const skills: SkillDefinition[] = [
     parameters: [
       { name: 'query', type: 'string', description: 'Name or phone number to search.', required: true },
     ],
-    supported: false,
+    supported: true,
   },
 
   // ─── Media ─────────────────────────────────────────────────────────────
@@ -534,7 +534,7 @@ export const skills: SkillDefinition[] = [
       { name: 'appName', type: 'string', description: 'Media app to use.', required: false },
       { name: 'query', type: 'string', description: 'Song, artist, playlist, or video to play.', required: true },
     ],
-    supported: false,
+    supported: true,
   },
   {
     id: 'media.pause',
@@ -543,7 +543,7 @@ export const skills: SkillDefinition[] = [
     category: 'media',
     icon: Video,
     parameters: [],
-    supported: false,
+    supported: true,
   },
   {
     id: 'media.next',
@@ -552,7 +552,7 @@ export const skills: SkillDefinition[] = [
     category: 'media',
     icon: Music,
     parameters: [],
-    supported: false,
+    supported: true,
   },
   {
     id: 'media.previous',
@@ -561,7 +561,7 @@ export const skills: SkillDefinition[] = [
     category: 'media',
     icon: Music,
     parameters: [],
-    supported: false,
+    supported: true,
   },
   {
     id: 'camera.capture',
@@ -572,7 +572,7 @@ export const skills: SkillDefinition[] = [
     parameters: [
       { name: 'camera', type: 'enum', description: 'Which camera to use.', required: false, enum: ['front', 'back'] },
     ],
-    supported: false,
+    supported: true,
   },
   {
     id: 'gallery.open',
@@ -583,7 +583,7 @@ export const skills: SkillDefinition[] = [
     parameters: [
       { name: 'album', type: 'string', description: 'Album name.', required: false },
     ],
-    supported: false,
+    supported: true,
   },
 
   // ─── Productivity ──────────────────────────────────────────────────────
@@ -600,7 +600,7 @@ export const skills: SkillDefinition[] = [
       { name: 'description', type: 'string', description: 'Event description.', required: false },
       { name: 'reminderMinutes', type: 'number', description: 'Minutes before event to remind.', required: false },
     ],
-    supported: false,
+    supported: true,
     requiresConfirmation: false,
   },
   {
@@ -615,7 +615,7 @@ export const skills: SkillDefinition[] = [
       { name: 'label', type: 'string', description: 'Alarm label.', required: false },
       { name: 'repeat', type: 'boolean', description: 'Whether the alarm repeats.', required: false },
     ],
-    supported: false,
+    supported: true,
     requiresConfirmation: false,
   },
   {
@@ -628,7 +628,7 @@ export const skills: SkillDefinition[] = [
       { name: 'seconds', type: 'number', description: 'Timer duration in seconds.', required: true },
       { name: 'label', type: 'string', description: 'Timer label.', required: false },
     ],
-    supported: false,
+    supported: true,
   },
   {
     id: 'calculator.compute',
@@ -650,7 +650,7 @@ export const skills: SkillDefinition[] = [
     parameters: [
       { name: 'text', type: 'string', description: 'Text to copy.', required: true },
     ],
-    supported: false,
+    supported: true,
   },
   {
     id: 'clipboard.paste',
@@ -659,7 +659,7 @@ export const skills: SkillDefinition[] = [
     category: 'productivity',
     icon: Clipboard,
     parameters: [],
-    supported: false,
+    supported: true,
   },
   {
     id: 'notes.create',
@@ -671,7 +671,7 @@ export const skills: SkillDefinition[] = [
       { name: 'title', type: 'string', description: 'Note title.', required: false },
       { name: 'body', type: 'string', description: 'Note body.', required: true },
     ],
-    supported: false,
+    supported: true,
   },
 
 
@@ -770,7 +770,7 @@ export const skills: SkillDefinition[] = [
       { name: 'destination', type: 'string', description: 'Destination query.', required: true },
       { name: 'mode', type: 'enum', description: 'Travel mode.', required: false, enum: ['driving', 'walking', 'transit', 'bicycling'] },
     ],
-    supported: false,
+    supported: true,
   },
   {
     id: 'url.open',
@@ -781,7 +781,7 @@ export const skills: SkillDefinition[] = [
     parameters: [
       { name: 'url', type: 'string', description: 'URL to open.', required: true },
     ],
-    supported: false,
+    supported: true,
   },
   {
     id: 'share.text',
@@ -793,7 +793,7 @@ export const skills: SkillDefinition[] = [
       { name: 'text', type: 'string', description: 'Text to share.', required: true },
       { name: 'subject', type: 'string', description: 'Share subject.', required: false },
     ],
-    supported: false,
+    supported: true,
   },
 ];
 

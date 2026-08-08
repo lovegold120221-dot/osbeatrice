@@ -2,7 +2,6 @@ import 'package:flutter/services.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:developer' as developer;
-import 'dart:typed_data';
 import 'vision_service.dart';
 
 /// Dart bridge to the native AccessibilityService.

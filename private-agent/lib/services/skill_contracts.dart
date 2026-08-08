@@ -21,6 +21,12 @@ enum SkillFlowAction {
   screenInspect,
   /// Generate and register a new skill contract at runtime.
   generateSkill,
+  /// Read the current skill registry.
+  listSkills,
+  /// Update an existing generated skill contract.
+  updateSkill,
+  /// Delete a generated skill contract.
+  deleteSkill,
 }
 
 class SkillStep {
@@ -432,16 +438,44 @@ class SkillManifest {
     ),
   ];
 
-  /// Runtime registry for generated skills. Base contracts are immutable;
-  /// generated contracts are added here and become immediately executable.
+  /// Full-access runtime CRUD registry for generated skills. Base contracts
+  /// are immutable; generated contracts live in memory and can be created,
+  /// read, updated, and deleted at runtime.
   static final List<SkillContract> _generatedContracts = [];
 
+  /// Register a new contract. If one with the same id/version exists,
+  /// it is replaced (upsert).
   static void register(SkillContract contract) {
-    if (find(contract.qualifiedId) == null) {
+    final idx = _generatedContracts.indexWhere(
+      (c) => c.id == contract.id && c.version == contract.version,
+    );
+    if (idx >= 0) {
+      _generatedContracts[idx] = contract;
+    } else {
       _generatedContracts.add(contract);
     }
   }
 
+  /// Replace an existing generated contract by id.
+  static bool update(String id, SkillContract contract) {
+    final idx = _generatedContracts.indexWhere((c) => c.id == id);
+    if (idx < 0) return false;
+    _generatedContracts[idx] = contract;
+    return true;
+  }
+
+  /// Remove a generated contract by id. Built-in contracts cannot be deleted.
+  static bool delete(String id) {
+    final before = _generatedContracts.length;
+    _generatedContracts.removeWhere((c) => c.id == id);
+    return _generatedContracts.length < before;
+  }
+
+  /// True if the skill is a built-in contract (read-only).
+  static bool isBuiltIn(String id) =>
+      _baseContracts.any((c) => c.id == id);
+
+  /// List all registered contracts (base + generated).
   static List<SkillContract> get contracts => [
         ..._baseContracts,
         ..._generatedContracts,

@@ -231,26 +231,59 @@ class SkillRunner {
         return true;
       case SkillFlowAction.generateSkill:
         return await _generateSkill(inputs);
+      case SkillFlowAction.listSkills:
+        return await _listSkills();
+      case SkillFlowAction.updateSkill:
+        return await _updateSkill(inputs);
+      case SkillFlowAction.deleteSkill:
+        return await _deleteSkill(inputs);
     }
   }
 
-  /// Generate a new skill contract from the invocation inputs, validate it,
-  /// and register it in the live SkillManifest cache so it can be invoked
-  /// immediately on the same device.
-  Future<bool> _generateSkill(Map<String, dynamic> inputs) async {
+  /// Full-access CRUD helpers for the skill registry.
+  Future<bool> _generateSkill(Map<String, dynamic> inputs) async =>
+      _upsertSkill(inputs, allowCreate: true);
+
+  Future<bool> _listSkills() async {
+    try {
+      developer.log('Skill registry: ${SkillManifest.qualifiedIds}', name: 'BeatriceOS');
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  Future<bool> _updateSkill(Map<String, dynamic> inputs) async {
+    final name = inputs['skill_name']?.toString().trim() ?? '';
+    if (name.isEmpty || _isBuiltIn(name)) return false;
+    return _upsertSkill(inputs, allowCreate: false);
+  }
+
+  Future<bool> _deleteSkill(Map<String, dynamic> inputs) async {
+    final name = inputs['skill_name']?.toString().trim() ?? '';
+    if (name.isEmpty || _isBuiltIn(name)) return false;
+    final removed = SkillManifest.delete(name);
+    developer.log(removed ? 'Deleted skill $name' : 'Skill $name not found', name: 'BeatriceOS');
+    return removed;
+  }
+
+  bool _isBuiltIn(String id) =>
+      SkillManifest.isBuiltIn(id);
+
+  Future<bool> _upsertSkill(
+    Map<String, dynamic> inputs, {
+    required bool allowCreate,
+  }) async {
     try {
       final name = inputs['skill_name']?.toString().trim() ?? '';
-      final category = inputs['category']?.toString().trim() ?? 'app';
       final description = inputs['description']?.toString().trim() ?? '';
-      if (name.isEmpty || description.isEmpty || category.isEmpty) {
-        developer.log('Skill generation rejected: missing name/category/description', name: 'BeatriceOS');
-        return false;
-      }
+      if (name.isEmpty || description.isEmpty) return false;
 
       final rawInputs = inputs['inputs']?.toString() ?? '[]';
       final rawFlow = inputs['flow']?.toString() ?? '[]';
       final inputList = _parseSkillInputs(rawInputs);
       final flowList = _parseSkillFlow(rawFlow);
+      if (flowList.isEmpty) return false;
 
       final generated = SkillContract(
         id: name,
@@ -266,11 +299,19 @@ class SkillRunner {
         },
       );
 
-      SkillManifest.register(generated);
-      developer.log('Generated skill registered: ${generated.qualifiedId}', name: 'BeatriceOS');
+      final existing = SkillManifest.find(name);
+      if (existing != null && _isBuiltIn(name)) return false;
+
+      if (allowCreate) {
+        SkillManifest.register(generated);
+      } else {
+        if (existing == null) return false;
+        SkillManifest.update(name, generated);
+      }
+      developer.log('Skill registered/updated: ${generated.qualifiedId}', name: 'BeatriceOS');
       return true;
     } catch (e) {
-      developer.log('Skill generation failed: $e', name: 'BeatriceOS');
+      developer.log('Skill upsert failed: $e', name: 'BeatriceOS');
       return false;
     }
   }

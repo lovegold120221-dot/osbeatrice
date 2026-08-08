@@ -55,7 +55,6 @@ class AiService {
 
   String? _apiKey;
   String _baseUrl = taskApiUrl;
-  String? _deviceId;
   String _model = _defaultModel;
   int _maxSteps = 15;
   bool _disableMaxSteps = false;
